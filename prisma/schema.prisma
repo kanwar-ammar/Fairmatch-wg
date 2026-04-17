@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  RESIDENT
+}
+
+enum ActiveRole {
+  STUDENT
+  RESIDENT
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ApplicationStatus {
+  PENDING
+  VIEWED
+  INTERVIEW
+  ACCEPTED
+  REJECTED
+}
+
+enum InterviewStatus {
+  UPCOMING
+  COMPLETED
+  CANCELLED
+}
+
+enum MembershipRole {
+  OWNER
+  MEMBER
+}
+
+enum DocumentType {
+  STUDENT_ID
+  UNIVERSITY_EMAIL
+  ID_DOCUMENT
+  ENROLLMENT_PROOF
+  RESIDENT_ID
+  PROOF_OF_ADDRESS
+  OTHER
+}
+
+model User {
+  id                String                @id @default(cuid())
+  email             String                @unique
+  passwordHash      String
+  displayName       String?
+  role              UserRole
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  settings          UserSettings?
+  studentProfile    StudentProfile?
+  residentProfile   ResidentProfile?
+  preference        StudentPreference?
+  verificationDocs  VerificationDocument[]
+  memberships       HomeMembership[]
+  ownedHomes        HomeProfile[]         @relation("HomeOwner")
+  applications      Application[]         @relation("StudentApplications")
+}
+
+model UserSettings {
+  id          String     @id @default(cuid())
+  userId      String     @unique
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeRole  ActiveRole @default(STUDENT)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model StudentProfile {
+  id                 String              @id @default(cuid())
+  userId             String              @unique
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName           String
+  age                Int?
+  bio                String?
+  university         String?
+  degreeProgram      String?
+  semester           String?
+  location           String?
+  languages          String?
+  budgetMin          Int?
+  budgetMax          Int?
+  preferredDistricts String?
+  moveInDate         String?
+  avatarUrl          String?
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model ResidentProfile {
+  id                 String              @id @default(cuid())
+  userId             String              @unique
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName           String
+  age                Int?
+  bio                String?
+  city               String?
+  phone              String?
+  avatarUrl          String?
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model HomeProfile {
+  id             String          @id @default(cuid())
+  ownerId        String
+  owner          User            @relation("HomeOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  title          String
+  description    String?
+  district       String
+  address        String?
+  rentPrice      Int
+  depositAmount  Int?
+  roomSizeM2     Int?
+  totalRooms     Int
+  availableRooms Int
+  availableFrom  String?
+  minStayMonths  Int?
+  verified       Boolean         @default(false)
+  isLive         Boolean         @default(true)
+  vibeSummary    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  memberships    HomeMembership[]
+  amenities      HomeAmenity[]
+  photos         HomePhoto[]
+  rules          HomeRule[]
+  applications   Application[]
+}
+
+model HomeMembership {
+  id            String         @id @default(cuid())
+  homeProfileId String
+  homeProfile   HomeProfile    @relation(fields: [homeProfileId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role          MembershipRole @default(MEMBER)
+  displayName   String?
+  joinedAt      DateTime       @default(now())
+  isPrimaryContact Boolean     @default(false)
+
+  @@unique([homeProfileId, userId])
+}
+
+model HomeAmenity {
+  id            String      @id @default(cuid())
+  homeProfileId String
+  homeProfile   HomeProfile @relation(fields: [homeProfileId], references: [id], onDelete: Cascade)
+  key           String
+  enabled       Boolean     @default(true)
+  sortOrder     Int         @default(0)
+}
+
+model HomePhoto {
+  id            String      @id @default(cuid())
+  homeProfileId String
+  homeProfile   HomeProfile @relation(fields: [homeProfileId], references: [id], onDelete: Cascade)
+  url           String
+  alt           String
+  sortOrder     Int         @default(0)
+  createdAt     DateTime     @default(now())
+}
+
+model HomeRule {
+  id            String      @id @default(cuid())
+  homeProfileId String
+  homeProfile   HomeProfile @relation(fields: [homeProfileId], references: [id], onDelete: Cascade)
+  text          String
+  category      String
+  sortOrder     Int         @default(0)
+}
+
+model StudentPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cleanliness     Int
+  recycling       Int
+  diy             Int
+  cooking         Int
+  quietness       Int
+  music           Int
+  fitness         Int
+  studyHabits     Int
+  socialActivity  Int
+  parties         Int
+  petFriendly     Boolean
+  smokingAllowed  Boolean
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Application {
+  id            String             @id @default(cuid())
+  studentId     String
+  student       User               @relation("StudentApplications", fields: [studentId], references: [id], onDelete: Cascade)
+  homeProfileId String
+  homeProfile   HomeProfile        @relation(fields: [homeProfileId], references: [id], onDelete: Cascade)
+  status        ApplicationStatus  @default(PENDING)
+  blindPhase    Boolean            @default(false)
+  matchScore    Int
+  message       String?
+  appliedAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  interviews    Interview[]
+
+  @@unique([studentId, homeProfileId])
+}
+
+model Interview {
+  id            String           @id @default(cuid())
+  applicationId String
+  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  scheduledAt   DateTime
+  type          String
+  location      String?
+  notes         String?
+  status        InterviewStatus  @default(UPCOMING)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model VerificationDocument {
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        DocumentType
+  label       String
+  fileName    String?
+  fileUrl     String?
+  status      VerificationStatus @default(PENDING)
+  uploadedAt  DateTime            @default(now())
+  reviewedAt  DateTime?
+}

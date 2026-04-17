@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import React from "react"
+import React from "react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   ShieldCheck,
   Eye,
@@ -12,8 +12,9 @@ import {
   MessageSquare,
   ArrowRight,
   Sparkles,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useAppSelector } from "@/store/hooks";
 
 const recentWGs = [
   {
@@ -40,9 +41,17 @@ const recentWGs = [
     size: "16m\u00B2",
     available: "Mar 15",
   },
-]
+];
 
-export function DashboardOverview({ onNavigate }: { onNavigate: (tab: string) => void }) {
+export function DashboardOverview({
+  onNavigate,
+}: {
+  onNavigate: (tab: string) => void;
+}) {
+  const currentUser = useAppSelector((state) => state.auth.currentUser);
+
+  const displayName = currentUser?.fullName?.trim() || "Your profile";
+
   return (
     <div className="flex flex-col gap-6">
       {/* Welcome section */}
@@ -50,10 +59,11 @@ export function DashboardOverview({ onNavigate }: { onNavigate: (tab: string) =>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-xl font-bold text-foreground">
-              Welcome back, Ammar
+              Welcom {displayName}
             </h3>
             <p className="mt-1 text-sm text-muted-foreground font-body leading-relaxed">
-              Your profile is looking great. You have 3 new matches waiting for you.
+              Your profile is looking great. You have 3 new matches waiting for
+              you.
             </p>
           </div>
           <Button
@@ -74,27 +84,17 @@ export function DashboardOverview({ onNavigate }: { onNavigate: (tab: string) =>
           value="Complete"
           accent
         />
-        <StatCard
-          icon={Eye}
-          label="Profile Views"
-          value="24"
-        />
-        <StatCard
-          icon={Heart}
-          label="WG Matches"
-          value="12"
-        />
-        <StatCard
-          icon={MessageSquare}
-          label="Messages"
-          value="5"
-        />
+        <StatCard icon={Eye} label="Profile Views" value="24" />
+        <StatCard icon={Heart} label="WG Matches" value="12" />
+        <StatCard icon={MessageSquare} label="Messages" value="5" />
       </div>
 
       {/* Profile completeness */}
       <Card className="rounded-2xl border-border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">Profile Completeness</CardTitle>
+          <CardTitle className="text-base font-semibold">
+            Profile Completeness
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
@@ -102,7 +102,8 @@ export function DashboardOverview({ onNavigate }: { onNavigate: (tab: string) =>
             <span className="text-sm font-bold text-primary">78%</span>
           </div>
           <p className="mt-2 text-sm text-muted-foreground font-body">
-            Add a photo gallery and complete your preferences to boost your match rate.
+            Add a photo gallery and complete your preferences to boost your
+            match rate.
           </p>
         </CardContent>
       </Card>
@@ -110,7 +111,9 @@ export function DashboardOverview({ onNavigate }: { onNavigate: (tab: string) =>
       {/* Top matches */}
       <div>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-foreground">Top WG Matches</h3>
+          <h3 className="text-base font-bold text-foreground">
+            Top WG Matches
+          </h3>
           <button
             type="button"
             onClick={() => onNavigate("browse")}
@@ -141,8 +144,11 @@ export function DashboardOverview({ onNavigate }: { onNavigate: (tab: string) =>
                   <span>From {wg.available}</span>
                 </div>
                 <p className="mt-2 text-lg font-bold text-foreground">
-                  {"\u20AC"}{wg.price}
-                  <span className="text-xs font-normal text-muted-foreground">/month</span>
+                  {"\u20AC"}
+                  {wg.price}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    /month
+                  </span>
                 </p>
               </CardContent>
             </Card>
@@ -150,7 +156,7 @@ export function DashboardOverview({ onNavigate }: { onNavigate: (tab: string) =>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function StatCard({
@@ -159,10 +165,10 @@ function StatCard({
   value,
   accent,
 }: {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  value: string
-  accent?: boolean
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  accent?: boolean;
 }) {
   return (
     <Card className="rounded-2xl border-border shadow-sm">
@@ -170,20 +176,22 @@ function StatCard({
         <div
           className={cn(
             "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-            accent ? "bg-accent/15 text-accent" : "bg-primary/10 text-primary"
+            accent ? "bg-accent/15 text-accent" : "bg-primary/10 text-primary",
           )}
         >
           <Icon className="h-5 w-5" />
         </div>
         <div>
           <p className="text-xs text-muted-foreground font-medium">{label}</p>
-          <p className="text-lg font-bold text-foreground leading-tight">{value}</p>
+          <p className="text-lg font-bold text-foreground leading-tight">
+            {value}
+          </p>
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(" ")
+  return classes.filter(Boolean).join(" ");
 }

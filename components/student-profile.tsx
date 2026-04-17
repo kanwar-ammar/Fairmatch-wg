@@ -1,59 +1,218 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Image from "next/image"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
+import { useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { setCurrentUserFromDatabase } from "@/store/auth-slice";
+import type { CurrentUser, VerificationDocSummary } from "@/store/auth-slice";
 import {
   ShieldCheck,
   Upload,
-  Camera,
   GraduationCap,
   MapPin,
   Calendar,
   Globe,
-  Plus,
-  X,
   Pencil,
   Check,
-} from "lucide-react"
+} from "lucide-react";
 
-interface GalleryImage {
-  id: number
-  src: string
-  alt: string
-}
+type EditableQuickDetails = {
+  budgetMin: string;
+  budgetMax: string;
+  moveInDate: string;
+  semester: string;
+  preferredDistricts: string;
+};
 
-const initialGallery: GalleryImage[] = [
-  { id: 1, src: "/gallery-1.jpg", alt: "Student room setup" },
-  { id: 2, src: "/gallery-2.jpg", alt: "Cooking hobby" },
-  { id: 3, src: "/gallery-3.jpg", alt: "Outdoor activity" },
-  { id: 4, src: "/gallery-4.jpg", alt: "University campus" },
-]
+const QUICK_DETAIL_PLACEHOLDERS = {
+  budget: "Set your budget range",
+  moveIn: "Add your preferred move-in timeline",
+  semester: "Add your current semester",
+  district: "Add preferred districts",
+};
 
 export function StudentProfile() {
-  const [isEditing, setIsEditing] = useState(false)
-  const [gallery] = useState<GalleryImage[]>(initialGallery)
-  const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null)
+  const dispatch = useAppDispatch();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const currentUser = useAppSelector((state) => state.auth.currentUser);
 
-  const [bio, setBio] = useState(
-    "Hi! I'm Ammar, a Computer Science Master's student at University of Bremen  I'm tidy, enjoy cooking for the WG, and value a quiet environment for studying. On weekends, I love exploring the city, visiting flea markets, and cycling along the Spree. Looking for a welcoming WG where we share meals and respect each other's space."
-  )
-  const [editBio, setEditBio] = useState(bio)
+  const profile = currentUser?.studentProfile;
+  const fullName = profile?.fullName || currentUser?.fullName || "Your profile";
+  const avatarUrl = currentUser?.avatarUrl ?? "/placeholder-avatar.jpg";
+  const initials =
+    fullName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "U";
+  const isVerified = profile?.verificationStatus === "VERIFIED";
+  const hasLocation = Boolean(profile?.location);
+  const hasAge = typeof profile?.age === "number";
+  const hasLanguages = Boolean(profile?.languages);
 
-  const [rules] = useState([
-    "No smoking indoors",
-    "Quiet hours after 22:00",
-    "Clean up shared spaces daily",
-    "Guests welcome with notice",
-    "Share cooking duties weekly",
-  ])
+  const [bio, setBio] = useState("");
+  const [editBio, setEditBio] = useState(bio);
+  const [editQuickDetails, setEditQuickDetails] = useState<EditableQuickDetails>(
+    {
+      budgetMin: "",
+      budgetMax: "",
+      moveInDate: "",
+      semester: "",
+      preferredDistricts: "",
+    },
+  );
+
+  const profileBio =
+    profile?.bio ??
+    "Add a short intro so potential WG housemates can understand your lifestyle and expectations.";
+
+  useEffect(() => {
+    setBio(profileBio);
+    setEditBio(profileBio);
+    setEditQuickDetails({
+      budgetMin:
+        typeof profile?.budgetMin === "number" ? String(profile.budgetMin) : "",
+      budgetMax:
+        typeof profile?.budgetMax === "number" ? String(profile.budgetMax) : "",
+      moveInDate: profile?.moveInDate ?? "",
+      semester: profile?.semester ?? "",
+      preferredDistricts: profile?.preferredDistricts ?? "",
+    });
+  }, [profileBio]);
+
+  const verificationDocs = useMemo(() => {
+    const defaults: VerificationDocSummary[] = [
+      { type: "STUDENT_ID", label: "Student ID", status: "PENDING" },
+      {
+        type: "UNIVERSITY_EMAIL",
+        label: "University Email",
+        status: "PENDING",
+      },
+      { type: "ID_DOCUMENT", label: "ID Document", status: "PENDING" },
+      {
+        type: "ENROLLMENT_PROOF",
+        label: "Enrollment Proof",
+        status: "PENDING",
+      },
+    ];
+
+    if (!currentUser?.verificationDocs?.length) {
+      return defaults;
+    }
+
+    return defaults.map((item) => {
+      const fromDb = currentUser.verificationDocs?.find(
+        (doc) => doc.type === item.type,
+      );
+      return fromDb ?? item;
+    });
+  }, [currentUser?.verificationDocs]);
+
+  const quickDetailRows = useMemo(
+    () => [
+      {
+        key: "budget",
+        label: "Budget",
+        value:
+          typeof profile?.budgetMin === "number" && typeof profile?.budgetMax === "number"
+            ? `EUR ${profile.budgetMin} - EUR ${profile.budgetMax} / month`
+            : QUICK_DETAIL_PLACEHOLDERS.budget,
+        isPlaceholder:
+          !(typeof profile?.budgetMin === "number" && typeof profile?.budgetMax === "number"),
+      },
+      {
+        key: "move-in",
+        label: "Move-in",
+        value: profile?.moveInDate || QUICK_DETAIL_PLACEHOLDERS.moveIn,
+        isPlaceholder: !profile?.moveInDate,
+      },
+      {
+        key: "semester",
+        label: "Semester",
+        value: profile?.semester || QUICK_DETAIL_PLACEHOLDERS.semester,
+        isPlaceholder: !profile?.semester,
+      },
+      {
+        key: "district",
+        label: "District",
+        value: profile?.preferredDistricts || QUICK_DETAIL_PLACEHOLDERS.district,
+        isPlaceholder: !profile?.preferredDistricts,
+      },
+    ],
+    [profile],
+  );
+
+  const handleQuickDetailChange = (
+    field: keyof EditableQuickDetails,
+    value: string,
+  ) => {
+    setEditQuickDetails((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const parseOptionalNumber = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? Math.round(parsed) : null;
+  };
+
+  const parseOptionalText = (value: string) => {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+
+  const handleSaveProfile = async () => {
+    if (!currentUser) return;
+
+    setSaveError("");
+    setIsSaving(true);
+
+    try {
+      const response = await fetch("/api/users/current", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          bio: parseOptionalText(editBio),
+          budgetMin: parseOptionalNumber(editQuickDetails.budgetMin),
+          budgetMax: parseOptionalNumber(editQuickDetails.budgetMax),
+          moveInDate: parseOptionalText(editQuickDetails.moveInDate),
+          semester: parseOptionalText(editQuickDetails.semester),
+          preferredDistricts: parseOptionalText(editQuickDetails.preferredDistricts),
+        }),
+      });
+
+      const result = (await response.json()) as {
+        error?: string;
+        user?: CurrentUser;
+      };
+
+      if (!response.ok || !result.user) {
+        setSaveError(result.error || "Unable to save profile.");
+        return;
+      }
+
+      dispatch(setCurrentUserFromDatabase(result.user));
+      setBio(result.user.studentProfile?.bio ?? profileBio);
+      setIsEditing(false);
+    } catch {
+      setSaveError("Unable to save profile.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,9 +222,9 @@ export function StudentProfile() {
         <div className="relative h-32 bg-gradient-to-r from-primary/20 via-primary/10 to-accent/10 sm:h-40">
           <div className="absolute -bottom-12 left-6 sm:-bottom-14 sm:left-8">
             <Avatar className="h-24 w-24 border-4 border-card shadow-md sm:h-28 sm:w-28">
-              <AvatarImage src="/placeholder-avatar.jpg" alt="Ammar Ali" />
+              <AvatarImage src={avatarUrl} alt={fullName} />
               <AvatarFallback className="bg-primary/10 text-primary text-2xl font-bold">
-                AS
+                {initials}
               </AvatarFallback>
             </Avatar>
           </div>
@@ -75,31 +234,41 @@ export function StudentProfile() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-foreground">Ammar Ali</h2>
+                <h2 className="text-xl font-bold text-foreground">
+                  {fullName}
+                </h2>
                 <Badge className="gap-1 rounded-full bg-accent/15 text-accent border-0 text-xs font-semibold">
                   <ShieldCheck className="h-3 w-3" />
-                  Verified Student
+                  {isVerified ? "Verified Student" : "Student"}
                 </Badge>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground font-body">
-                <span className="flex items-center gap-1.5">
-                  <GraduationCap className="h-3.5 w-3.5" />
-                  M.Sc. Computer Science
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5" />
-                  Berlin, Germany
-                </span>
+                {profile?.degreeProgram ? (
+                  <span className="flex items-center gap-1.5">
+                    <GraduationCap className="h-3.5 w-3.5" />
+                    {profile.degreeProgram}
+                  </span>
+                ) : null}
+                {hasLocation ? (
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {profile?.location}
+                  </span>
+                ) : null}
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground font-body">
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5" />
-                  25 years old
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Globe className="h-3.5 w-3.5" />
-                  German, English, Turkish
-                </span>
+                {hasAge ? (
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {profile?.age} years old
+                  </span>
+                ) : null}
+                {hasLanguages ? (
+                  <span className="flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    {profile?.languages}
+                  </span>
+                ) : null}
               </div>
             </div>
             <Button
@@ -107,15 +276,18 @@ export function StudentProfile() {
               className="rounded-xl gap-2"
               onClick={() => {
                 if (isEditing) {
-                  setBio(editBio)
+                  void handleSaveProfile();
+                  return;
                 }
-                setIsEditing(!isEditing)
+                setSaveError("");
+                setIsEditing(!isEditing);
               }}
+              disabled={isSaving}
             >
               {isEditing ? (
                 <>
                   <Check className="h-4 w-4" />
-                  Save Profile
+                  {isSaving ? "Saving..." : "Save Profile"}
                 </>
               ) : (
                 <>
@@ -129,12 +301,14 @@ export function StudentProfile() {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left column - About & Rules */}
+        {/* Left column - About */}
         <div className="flex flex-col gap-6 lg:col-span-2">
           {/* About me */}
           <Card className="rounded-2xl border-border shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base font-semibold">About Me</CardTitle>
+              <CardTitle className="text-base font-semibold">
+                About Me
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {isEditing ? (
@@ -150,16 +324,100 @@ export function StudentProfile() {
                   {bio}
                 </p>
               )}
+              {saveError ? (
+                <p className="mt-3 text-sm text-destructive">{saveError}</p>
+              ) : null}
             </CardContent>
           </Card>
 
-          {/* Photo Gallery */}
+          {/* Quick details */}
+          <Card className="rounded-2xl border-border shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">
+                Quick Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isEditing ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Budget Min (EUR)</p>
+                    <Input
+                      value={editQuickDetails.budgetMin}
+                      onChange={(e) => handleQuickDetailChange("budgetMin", e.target.value)}
+                      placeholder="350"
+                      className="rounded-xl"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Budget Max (EUR)</p>
+                    <Input
+                      value={editQuickDetails.budgetMax}
+                      onChange={(e) => handleQuickDetailChange("budgetMax", e.target.value)}
+                      placeholder="550"
+                      className="rounded-xl"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Move-in</p>
+                    <Input
+                      value={editQuickDetails.moveInDate}
+                      onChange={(e) => handleQuickDetailChange("moveInDate", e.target.value)}
+                      placeholder="March 2026"
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Semester</p>
+                    <Input
+                      value={editQuickDetails.semester}
+                      onChange={(e) => handleQuickDetailChange("semester", e.target.value)}
+                      placeholder="3rd (Master's)"
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <p className="text-xs font-medium text-muted-foreground">Preferred districts</p>
+                    <Input
+                      value={editQuickDetails.preferredDistricts}
+                      onChange={(e) =>
+                        handleQuickDetailChange("preferredDistricts", e.target.value)
+                      }
+                      placeholder="Kreuzberg, Neukolln, Mitte"
+                      className="rounded-xl"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <dl className="flex flex-col gap-3">
+                  {quickDetailRows.map((detail) => (
+                    <DetailRow
+                      key={detail.key}
+                      label={detail.label}
+                      value={detail.value}
+                      isPlaceholder={detail.isPlaceholder}
+                    />
+                  ))}
+                </dl>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Photo Gallery (temporarily disabled)
           <Card className="rounded-2xl border-border shadow-sm">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold">Photo Gallery</CardTitle>
+                <CardTitle className="text-base font-semibold">
+                  Photo Gallery
+                </CardTitle>
                 {isEditing && (
-                  <Button variant="outline" size="sm" className="rounded-xl gap-2 text-xs bg-transparent">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl gap-2 text-xs bg-transparent"
+                  >
                     <Plus className="h-3.5 w-3.5" />
                     Add Photo
                   </Button>
@@ -205,11 +463,14 @@ export function StudentProfile() {
               </div>
             </CardContent>
           </Card>
+          */}
 
-          {/* WG Rules */}
+          {/* WG Rules (temporarily disabled)
           <Card className="rounded-2xl border-border shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base font-semibold">My WG Rules</CardTitle>
+              <CardTitle className="text-base font-semibold">
+                My WG Rules
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="flex flex-col gap-2.5">
@@ -218,9 +479,14 @@ export function StudentProfile() {
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-bold">
                       {i + 1}
                     </span>
-                    <span className="text-sm text-foreground font-body leading-relaxed">{rule}</span>
+                    <span className="text-sm text-foreground font-body leading-relaxed">
+                      {rule}
+                    </span>
                     {isEditing && (
-                      <button type="button" className="ml-auto text-muted-foreground hover:text-destructive">
+                      <button
+                        type="button"
+                        className="ml-auto text-muted-foreground hover:text-destructive"
+                      >
                         <X className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -228,13 +494,18 @@ export function StudentProfile() {
                 ))}
               </ul>
               {isEditing && (
-                <Button variant="outline" size="sm" className="mt-4 rounded-xl gap-2 text-xs bg-transparent">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4 rounded-xl gap-2 text-xs bg-transparent"
+                >
                   <Plus className="h-3.5 w-3.5" />
                   Add Rule
                 </Button>
               )}
             </CardContent>
           </Card>
+          */}
         </div>
 
         {/* Right column - Verification & Quick Info */}
@@ -242,72 +513,46 @@ export function StudentProfile() {
           {/* Verification status */}
           <Card className="rounded-2xl border-border shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base font-semibold">Verification Status</CardTitle>
+              <CardTitle className="text-base font-semibold">
+                Verification Status
+              </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <VerificationItem label="Student ID" verified />
-              <VerificationItem label="University Email" verified />
-              <VerificationItem label="ID Document" verified />
-              <VerificationItem label="Enrollment Proof" pending />
+              {verificationDocs.map((doc) => (
+                <VerificationItem
+                  key={doc.type}
+                  label={doc.label}
+                  verified={doc.status === "VERIFIED"}
+                  pending={doc.status === "PENDING"}
+                />
+              ))}
               <Separator className="my-1" />
-              <Button variant="outline" className="w-full rounded-xl gap-2 text-sm bg-transparent">
+              <Button
+                variant="outline"
+                className="w-full rounded-xl gap-2 text-sm bg-transparent"
+              >
                 <Upload className="h-4 w-4" />
                 Upload Documents
               </Button>
             </CardContent>
           </Card>
-
-          {/* Quick details */}
-          <Card className="rounded-2xl border-border shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Quick Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="flex flex-col gap-3">
-                <DetailRow label="Budget" value="\u20AC350 - \u20AC550 / month" />
-                <DetailRow label="Move-in" value="March 2026" />
-                <DetailRow label="Duration" value="12+ months" />
-                <DetailRow label="Semester" value="3rd (Master's)" />
-                <DetailRow label="WG Size" value="2-4 people" />
-                <DetailRow label="District" value="Kreuzberg, Neuk\u00F6lln, Mitte" />
-              </dl>
-            </CardContent>
-          </Card>
         </div>
       </div>
 
-      {/* Image lightbox */}
-      {selectedImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/60 backdrop-blur-sm p-4"
-          onClick={() => setSelectedImage(null)}
-          onKeyDown={(e) => e.key === "Escape" && setSelectedImage(null)}
-        >
-          <div className="relative max-h-[80vh] max-w-[80vw] overflow-hidden rounded-2xl bg-card shadow-xl">
-            <div className="relative h-[60vh] w-[80vw] max-w-2xl bg-muted">
-              <Image
-                src={selectedImage.src || "/placeholder.svg"}
-                alt={selectedImage.alt}
-                fill
-                className="object-contain"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedImage(null)}
-              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-foreground/80 text-background hover:bg-foreground transition-colors"
-            >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Image lightbox (temporarily disabled with gallery) */}
     </div>
-  )
+  );
 }
 
-function VerificationItem({ label, verified, pending }: { label: string; verified?: boolean; pending?: boolean }) {
+function VerificationItem({
+  label,
+  verified,
+  pending,
+}: {
+  label: string;
+  verified?: boolean;
+  pending?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-sm text-foreground font-body">{label}</span>
@@ -317,23 +562,46 @@ function VerificationItem({ label, verified, pending }: { label: string; verifie
           Verified
         </Badge>
       ) : pending ? (
-        <Badge variant="secondary" className="rounded-full text-[10px] font-semibold bg-primary/10 text-primary border-0">
+        <Badge
+          variant="secondary"
+          className="rounded-full text-[10px] font-semibold bg-primary/10 text-primary border-0"
+        >
           Pending
         </Badge>
       ) : (
-        <Badge variant="secondary" className="rounded-full text-[10px] font-semibold">
+        <Badge
+          variant="secondary"
+          className="rounded-full text-[10px] font-semibold"
+        >
           Not submitted
         </Badge>
       )}
     </div>
-  )
+  );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({
+  label,
+  value,
+  isPlaceholder,
+}: {
+  label: string;
+  value: string;
+  isPlaceholder?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between gap-4">
       <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-sm font-medium text-foreground text-right">{value}</dd>
+      <dd
+        className={[
+          "text-sm text-right",
+          isPlaceholder
+            ? "font-normal text-muted-foreground italic"
+            : "font-medium text-foreground",
+        ].join(" ")}
+      >
+        {value}
+      </dd>
     </div>
-  )
+  );
 }
