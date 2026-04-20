@@ -43,13 +43,80 @@ type StudentOverviewResponse = {
   };
 };
 
+const PROFILE_CHECK_LABELS = [
+  "Full name",
+  "Age",
+  "About me",
+  "WG bio",
+  "University",
+  "Degree program",
+  "Semester",
+  "Location",
+  "Contact",
+  "Hobbies",
+  "Languages",
+  "Minimum budget",
+  "Maximum budget",
+  "Preferred districts",
+  "Move-in date",
+  "Profile photo",
+];
+
+function getLocalMissingFields(currentUser: {
+  studentProfile?: {
+    fullName?: string | null;
+    age?: number | null;
+    bio?: string | null;
+    houseBio?: string | null;
+    university?: string | null;
+    degreeProgram?: string | null;
+    semester?: string | null;
+    location?: string | null;
+    contact?: string | null;
+    hobbies?: string | null;
+    languages?: string | null;
+    budgetMin?: number | null;
+    budgetMax?: number | null;
+    preferredDistricts?: string | null;
+    moveInDate?: string | null;
+    avatarUrl?: string | null;
+  } | null;
+} | null | undefined) {
+  const profile = currentUser?.studentProfile;
+
+  return [
+    !profile?.fullName?.trim() ? "Full name" : null,
+    profile?.age === null || profile?.age === undefined ? "Age" : null,
+    !profile?.bio?.trim() ? "About me" : null,
+    !profile?.houseBio?.trim() ? "WG bio" : null,
+    !profile?.university?.trim() ? "University" : null,
+    !profile?.degreeProgram?.trim() ? "Degree program" : null,
+    !profile?.semester?.trim() ? "Semester" : null,
+    !profile?.location?.trim() ? "Location" : null,
+    !profile?.contact?.trim() ? "Contact" : null,
+    !profile?.hobbies?.trim() ? "Hobbies" : null,
+    !profile?.languages?.trim() ? "Languages" : null,
+    profile?.budgetMin === null || profile?.budgetMin === undefined
+      ? "Minimum budget"
+      : null,
+    profile?.budgetMax === null || profile?.budgetMax === undefined
+      ? "Maximum budget"
+      : null,
+    !profile?.preferredDistricts?.trim() ? "Preferred districts" : null,
+    !profile?.moveInDate?.trim() ? "Move-in date" : null,
+    !profile?.avatarUrl?.trim() ? "Profile photo" : null,
+  ].filter((item): item is string => Boolean(item));
+}
+
 export function DashboardOverview({
   onNavigate,
 }: {
   onNavigate: (tab: string) => void;
 }) {
   const currentUser = useAppSelector((state) => state.auth.currentUser);
-  const [overview, setOverview] = useState<StudentOverviewResponse | null>(null);
+  const [overview, setOverview] = useState<StudentOverviewResponse | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
 
   const displayName = currentUser?.fullName?.trim() || "Your profile";
@@ -91,10 +158,20 @@ export function DashboardOverview({
     return () => window.clearInterval(interval);
   }, [currentUser?.id]);
 
-  const completeness = overview?.profileCompleteness.percentage ?? 0;
-  const missingFields = overview?.profileCompleteness.missing ?? [];
+  const hasApiOverview = Boolean(overview);
+  const apiCompleteness = overview?.profileCompleteness.percentage;
+  const apiMissingFields = overview?.profileCompleteness.missing ?? [];
+  const localMissingFields = getLocalMissingFields(currentUser);
+  const missingFields = hasApiOverview ? apiMissingFields : localMissingFields;
+  const localCompleteness = Math.round(
+    ((PROFILE_CHECK_LABELS.length - localMissingFields.length) /
+      PROFILE_CHECK_LABELS.length) *
+      100,
+  );
+  const completeness = hasApiOverview ? (apiCompleteness ?? 0) : localCompleteness;
   const topMatches = overview?.topMatches ?? [];
-  const hasMissing = missingFields.length > 0;
+  const hasMissing = missingFields.length > 0 || completeness < 100;
+  const isProfileComplete = !hasMissing && completeness >= 100;
 
   return (
     <div className="flex flex-col gap-6">
@@ -169,13 +246,17 @@ export function DashboardOverview({
                     <div className="space-y-1">
                       <p className="text-xs font-semibold">Missing fields</p>
                       <ul className="text-xs space-y-0.5">
-                        {missingFields.map((field) => (
+                        {(missingFields.length
+                          ? missingFields
+                          : ["Complete your student profile details"]).map((field) => (
                           <li key={field}>- {field}</li>
                         ))}
                       </ul>
                     </div>
                   ) : (
-                    <p className="text-xs font-semibold">All profile details are complete.</p>
+                    <p className="text-xs font-semibold">
+                      All profile details are complete.
+                    </p>
                   )}
                 </TooltipContent>
               </Tooltip>
@@ -185,11 +266,13 @@ export function DashboardOverview({
         <CardContent>
           <div className="flex items-center gap-4">
             <Progress value={completeness} className="h-2.5 flex-1" />
-            <span className="text-sm font-bold text-primary">{completeness}%</span>
+            <span className="text-sm font-bold text-primary">
+              {completeness}%
+            </span>
           </div>
-          {hasMissing ? (
+          {!isProfileComplete ? (
             <p className="mt-2 text-sm text-muted-foreground font-body">
-              Complete your remaining profile details to improve matching. {" "}
+              Complete your remaining profile details to improve matching.{" "}
               <button
                 type="button"
                 className="text-primary font-medium hover:underline"
@@ -269,6 +352,7 @@ function StatCard({
   icon: Icon,
   label,
   value,
+  subtext,
   accent,
 }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -294,7 +378,9 @@ function StatCard({
             {value}
           </p>
           {subtext ? (
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{subtext}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {subtext}
+            </p>
           ) : null}
         </div>
       </CardContent>

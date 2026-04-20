@@ -46,7 +46,9 @@ export function LandlordOverview({
   onNavigate: (tab: string) => void;
 }) {
   const currentUser = useAppSelector((state) => state.auth.currentUser);
-  const [overview, setOverview] = useState<ResidentOverviewResponse | null>(null);
+  const [overview, setOverview] = useState<ResidentOverviewResponse | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -93,7 +95,8 @@ export function LandlordOverview({
               Welcome back, {displayName}
             </h3>
             <p className="mt-1 text-sm text-muted-foreground font-body leading-relaxed">
-              You have {overview?.newApplications ?? 0} new applications and {overview?.interviews ?? 0} upcoming interviews.
+              You have {overview?.newApplications ?? 0} new applications and{" "}
+              {overview?.interviews ?? 0} upcoming interviews.
             </p>
           </div>
           <Button
@@ -108,10 +111,28 @@ export function LandlordOverview({
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Inbox} label="New Applications" value={String(overview?.newApplications ?? 0)} />
-        <StatCard icon={Eye} label="Profile Views" value={String(overview?.profileViews ?? 0)} />
-        <StatCard icon={CalendarClock} label="Interviews" value={String(overview?.interviews ?? 0)} accent />
-        <StatCard icon={CheckCircle2} label="Matches Made" value={String(overview?.matchesMade ?? 0)} accent />
+        <StatCard
+          icon={Inbox}
+          label="New Applications"
+          value={String(overview?.newApplications ?? 0)}
+        />
+        <StatCard
+          icon={Eye}
+          label="Profile Views"
+          value={String(overview?.profileViews ?? 0)}
+        />
+        <StatCard
+          icon={CalendarClock}
+          label="Interviews"
+          value={String(overview?.interviews ?? 0)}
+          accent
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="Matches Made"
+          value={String(overview?.matchesMade ?? 0)}
+          accent
+        />
       </div>
 
       {/* Listing completeness */}
@@ -123,8 +144,13 @@ export function LandlordOverview({
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
-            <Progress value={overview?.listingCompleteness ?? 0} className="h-2.5 flex-1" />
-            <span className="text-sm font-bold text-primary">{overview?.listingCompleteness ?? 0}%</span>
+            <Progress
+              value={overview?.listingCompleteness ?? 0}
+              className="h-2.5 flex-1"
+            />
+            <span className="text-sm font-bold text-primary">
+              {overview?.listingCompleteness ?? 0}%
+            </span>
           </div>
           <p className="mt-2 text-sm text-muted-foreground font-body">
             Add more photos and update your house rules to reach 100% and
@@ -181,7 +207,9 @@ export function LandlordOverview({
               ))}
             </ul>
             {!recentApplicants.length ? (
-              <p className="text-sm text-muted-foreground">No applicants yet.</p>
+              <p className="text-sm text-muted-foreground">
+                No applicants yet.
+              </p>
             ) : null}
           </CardContent>
         </Card>

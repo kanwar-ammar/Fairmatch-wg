@@ -3,47 +3,84 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { calculateMatchScore } from "@/lib/match-score";
 
-function computeProfileCompleteness(studentProfile: {
-  fullName: string;
-  age: number | null;
-  bio: string | null;
-  houseBio: string | null;
-  university: string | null;
-  degreeProgram: string | null;
-  semester: string | null;
-  location: string | null;
-  contact: string | null;
-  hobbies: string | null;
-  languages: string | null;
-  budgetMin: number | null;
-  budgetMax: number | null;
-  preferredDistricts: string | null;
-  moveInDate: string | null;
-  avatarUrl: string | null;
-} | null, hasPreferences: boolean) {
+function computeProfileCompleteness(
+  studentProfile: {
+    fullName: string;
+    age: number | null;
+    bio: string | null;
+    houseBio: string | null;
+    university: string | null;
+    degreeProgram: string | null;
+    semester: string | null;
+    location: string | null;
+    contact: string | null;
+    hobbies: string | null;
+    languages: string | null;
+    budgetMin: number | null;
+    budgetMax: number | null;
+    preferredDistricts: string | null;
+    moveInDate: string | null;
+    avatarUrl: string | null;
+  } | null,
+  hasPreferences: boolean,
+) {
   const checks = [
     { label: "Full name", complete: Boolean(studentProfile?.fullName?.trim()) },
-    { label: "Age", complete: studentProfile?.age !== null && studentProfile?.age !== undefined },
+    {
+      label: "Age",
+      complete:
+        studentProfile?.age !== null && studentProfile?.age !== undefined,
+    },
     { label: "About me", complete: Boolean(studentProfile?.bio?.trim()) },
     { label: "WG bio", complete: Boolean(studentProfile?.houseBio?.trim()) },
-    { label: "University", complete: Boolean(studentProfile?.university?.trim()) },
-    { label: "Degree program", complete: Boolean(studentProfile?.degreeProgram?.trim()) },
+    {
+      label: "University",
+      complete: Boolean(studentProfile?.university?.trim()),
+    },
+    {
+      label: "Degree program",
+      complete: Boolean(studentProfile?.degreeProgram?.trim()),
+    },
     { label: "Semester", complete: Boolean(studentProfile?.semester?.trim()) },
     { label: "Location", complete: Boolean(studentProfile?.location?.trim()) },
     { label: "Contact", complete: Boolean(studentProfile?.contact?.trim()) },
     { label: "Hobbies", complete: Boolean(studentProfile?.hobbies?.trim()) },
-    { label: "Languages", complete: Boolean(studentProfile?.languages?.trim()) },
-    { label: "Minimum budget", complete: studentProfile?.budgetMin !== null && studentProfile?.budgetMin !== undefined },
-    { label: "Maximum budget", complete: studentProfile?.budgetMax !== null && studentProfile?.budgetMax !== undefined },
-    { label: "Preferred districts", complete: Boolean(studentProfile?.preferredDistricts?.trim()) },
-    { label: "Move-in date", complete: Boolean(studentProfile?.moveInDate?.trim()) },
-    { label: "Profile photo", complete: Boolean(studentProfile?.avatarUrl?.trim()) },
+    {
+      label: "Languages",
+      complete: Boolean(studentProfile?.languages?.trim()),
+    },
+    {
+      label: "Minimum budget",
+      complete:
+        studentProfile?.budgetMin !== null &&
+        studentProfile?.budgetMin !== undefined,
+    },
+    {
+      label: "Maximum budget",
+      complete:
+        studentProfile?.budgetMax !== null &&
+        studentProfile?.budgetMax !== undefined,
+    },
+    {
+      label: "Preferred districts",
+      complete: Boolean(studentProfile?.preferredDistricts?.trim()),
+    },
+    {
+      label: "Move-in date",
+      complete: Boolean(studentProfile?.moveInDate?.trim()),
+    },
+    {
+      label: "Profile photo",
+      complete: Boolean(studentProfile?.avatarUrl?.trim()),
+    },
     { label: "Lifestyle preferences", complete: hasPreferences },
   ];
 
   const completed = checks.filter((item) => item.complete).length;
   const percentage = Math.round((completed / checks.length) * 100);
-  const missing = checks.filter((item) => !item.complete).map((item) => item.label);
+  const missing = checks
+    .filter((item) => !item.complete)
+    .map((item) => item.label);
 
   return { percentage, missing };
 }
@@ -144,17 +181,27 @@ export async function GET(request: Request) {
     const topMatches = listingsWithScores.slice(0, 3);
     const averageMatch = listingsWithScores.length
       ? Math.round(
-          listingsWithScores.reduce((sum, listing) => sum + listing.matchScore, 0) /
-            listingsWithScores.length,
+          listingsWithScores.reduce(
+            (sum, listing) => sum + listing.matchScore,
+            0,
+          ) / listingsWithScores.length,
         )
       : 0;
 
-    const viewStatuses = new Set(["VIEWED", "INTERVIEW", "ACCEPTED", "REJECTED"]);
+    const viewStatuses = new Set([
+      "VIEWED",
+      "INTERVIEW",
+      "ACCEPTED",
+      "REJECTED",
+    ]);
     const uniqueViewers = new Set<string>();
 
     for (const application of applications) {
       if (!viewStatuses.has(application.status)) continue;
-      if (application.homeProfile.ownerId && application.homeProfile.ownerId !== userId) {
+      if (
+        application.homeProfile.ownerId &&
+        application.homeProfile.ownerId !== userId
+      ) {
         uniqueViewers.add(application.homeProfile.ownerId);
       }
       for (const ownerMember of application.homeProfile.memberships) {
@@ -169,7 +216,9 @@ export async function GET(request: Request) {
       Boolean(user.preference),
     );
 
-    const strongMatches = listingsWithScores.filter((listing) => listing.matchScore >= 70).length;
+    const strongMatches = listingsWithScores.filter(
+      (listing) => listing.matchScore >= 70,
+    ).length;
 
     return NextResponse.json({
       uniqueProfileViews: uniqueViewers.size,

@@ -119,21 +119,27 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    const newApplications = applications.filter((item) => item.status === "PENDING").length;
-    const matchesMade = applications.filter((item) => item.status === "ACCEPTED").length;
-    const profileViews = new Set(applications.map((item) => item.studentId)).size;
+    const newApplications = applications.filter(
+      (item) => item.status === "PENDING",
+    ).length;
+    const matchesMade = applications.filter(
+      (item) => item.status === "ACCEPTED",
+    ).length;
+    const profileViews = new Set(applications.map((item) => item.studentId))
+      .size;
 
     const recentApplicants = applications.slice(0, 5).map((item) => {
       const name =
         item.student.displayName ||
         item.student.studentProfile?.fullName ||
         item.student.email;
-      const initials = name
-        .split(" ")
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((part) => part[0]?.toUpperCase())
-        .join("") || "NA";
+      const initials =
+        name
+          .split(" ")
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0]?.toUpperCase())
+          .join("") || "NA";
 
       const normalizedStatus =
         item.status === "PENDING"
@@ -154,8 +160,10 @@ export async function GET(request: Request) {
     });
 
     const listingCompleteness = Math.round(
-      manageableListings.reduce((sum, listing) => sum + computeListingCompleteness(listing), 0) /
-        manageableListings.length,
+      manageableListings.reduce(
+        (sum, listing) => sum + computeListingCompleteness(listing),
+        0,
+      ) / manageableListings.length,
     );
 
     return NextResponse.json({
@@ -165,9 +173,11 @@ export async function GET(request: Request) {
       matchesMade,
       recentApplicants,
       activity: {
-        pending: applications.filter((item) => item.status === "PENDING").length,
+        pending: applications.filter((item) => item.status === "PENDING")
+          .length,
         viewed: applications.filter((item) => item.status === "VIEWED").length,
-        interview: applications.filter((item) => item.status === "INTERVIEW").length,
+        interview: applications.filter((item) => item.status === "INTERVIEW")
+          .length,
       },
       listingCompleteness,
     });
