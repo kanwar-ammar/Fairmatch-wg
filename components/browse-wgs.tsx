@@ -163,7 +163,11 @@ export function BrowseWGs() {
         const refreshedSelected = (result.listings || []).find(
           (listing: WGListing) => listing.id === selectedListing.id,
         );
-        setSelectedListing(refreshedSelected || null);
+
+        // Keep modal stable while browsing details; only update when the listing still exists.
+        if (refreshedSelected) {
+          setSelectedListing(refreshedSelected);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load listings");
@@ -186,11 +190,24 @@ export function BrowseWGs() {
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      void loadListings();
+      if (!selectedListing) {
+        void loadListings();
+      }
     }, 15000);
 
     return () => window.clearInterval(intervalId);
-  }, [currentUser?.id, favoritesOnly, searchQuery]);
+  }, [currentUser?.id, favoritesOnly, searchQuery, selectedListing?.id]);
+
+  useEffect(() => {
+    if (!selectedListing) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selectedListing]);
 
   const toggleFavorite = async (listing: WGListing) => {
     if (!currentUser?.id) return;
@@ -530,14 +547,18 @@ export function BrowseWGs() {
       {/* Detail modal */}
       {selectedListing ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 backdrop-blur-sm p-4"
-          onClick={() => setSelectedListing(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 p-4 backdrop-blur-sm"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedListing(null);
+            }
+          }}
           onKeyDown={(event) =>
             event.key === "Escape" && setSelectedListing(null)
           }
         >
           <Card
-            className="w-full max-w-lg rounded-2xl shadow-xl"
+            className="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="relative h-48 rounded-t-2xl bg-muted overflow-hidden">
@@ -550,7 +571,7 @@ export function BrowseWGs() {
                 {selectedListing.matchScore}% Match
               </Badge>
             </div>
-            <CardContent className="p-6">
+            <CardContent className="min-h-0 overflow-y-auto p-6">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-bold text-foreground">

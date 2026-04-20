@@ -62,26 +62,39 @@ const PROFILE_CHECK_LABELS = [
   "Profile photo",
 ];
 
-function getLocalMissingFields(currentUser: {
-  studentProfile?: {
-    fullName?: string | null;
-    age?: number | null;
-    bio?: string | null;
-    houseBio?: string | null;
-    university?: string | null;
-    degreeProgram?: string | null;
-    semester?: string | null;
-    location?: string | null;
-    contact?: string | null;
-    hobbies?: string | null;
-    languages?: string | null;
-    budgetMin?: number | null;
-    budgetMax?: number | null;
-    preferredDistricts?: string | null;
-    moveInDate?: string | null;
-    avatarUrl?: string | null;
-  } | null;
-} | null | undefined) {
+function formatDisplayName(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function getLocalMissingFields(
+  currentUser:
+    | {
+        studentProfile?: {
+          fullName?: string | null;
+          age?: number | null;
+          bio?: string | null;
+          houseBio?: string | null;
+          university?: string | null;
+          degreeProgram?: string | null;
+          semester?: string | null;
+          location?: string | null;
+          contact?: string | null;
+          hobbies?: string | null;
+          languages?: string | null;
+          budgetMin?: number | null;
+          budgetMax?: number | null;
+          preferredDistricts?: string | null;
+          moveInDate?: string | null;
+          avatarUrl?: string | null;
+        } | null;
+      }
+    | null
+    | undefined,
+) {
   const profile = currentUser?.studentProfile;
 
   return [
@@ -119,7 +132,9 @@ export function DashboardOverview({
   );
   const [loading, setLoading] = useState(true);
 
-  const displayName = currentUser?.fullName?.trim() || "Your profile";
+  const displayName = currentUser?.fullName
+    ? formatDisplayName(currentUser.fullName)
+    : "Your profile";
 
   useEffect(() => {
     if (!currentUser?.id) {
@@ -168,7 +183,9 @@ export function DashboardOverview({
       PROFILE_CHECK_LABELS.length) *
       100,
   );
-  const completeness = hasApiOverview ? (apiCompleteness ?? 0) : localCompleteness;
+  const completeness = hasApiOverview
+    ? (apiCompleteness ?? 0)
+    : localCompleteness;
   const topMatches = overview?.topMatches ?? [];
   const hasMissing = missingFields.length > 0 || completeness < 100;
   const isProfileComplete = !hasMissing && completeness >= 100;
@@ -248,7 +265,8 @@ export function DashboardOverview({
                       <ul className="text-xs space-y-0.5">
                         {(missingFields.length
                           ? missingFields
-                          : ["Complete your student profile details"]).map((field) => (
+                          : ["Complete your student profile details"]
+                        ).map((field) => (
                           <li key={field}>- {field}</li>
                         ))}
                       </ul>

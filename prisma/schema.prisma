@@ -68,6 +68,8 @@ model User {
   memberships       HomeMembership[]
   ownedHomes        HomeProfile[]         @relation("HomeOwner")
   applications      Application[]         @relation("StudentApplications")
+  profileViewsReceived ProfileView[]      @relation("ProfileViewsReceived")
+  profileViewsMade  ProfileView[]         @relation("ProfileViewsMade")
   savedListings     SavedListing[]
   sentMessages      ApplicationMessage[]  @relation("ApplicationMessageSender")
 }
@@ -288,4 +290,16 @@ model VerificationDocument {
   status      VerificationStatus @default(PENDING)
   uploadedAt  DateTime            @default(now())
   reviewedAt  DateTime?
+}
+
+model ProfileView {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    User     @relation("ProfileViewsReceived", fields: [studentId], references: [id], onDelete: Cascade)
+  viewerId   String
+  viewer     User     @relation("ProfileViewsMade", fields: [viewerId], references: [id], onDelete: Cascade)
+  viewedAt   DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([studentId, viewerId])
 }

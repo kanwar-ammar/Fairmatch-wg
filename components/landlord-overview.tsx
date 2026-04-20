@@ -40,6 +40,14 @@ type ResidentOverviewResponse = {
   listingCompleteness: number;
 };
 
+function formatDisplayName(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
 export function LandlordOverview({
   onNavigate,
 }: {
@@ -82,7 +90,9 @@ export function LandlordOverview({
     return () => window.clearInterval(interval);
   }, [currentUser?.id]);
 
-  const displayName = currentUser?.fullName?.trim() || "Resident";
+  const displayName = currentUser?.fullName
+    ? formatDisplayName(currentUser.fullName)
+    : "Resident";
   const recentApplicants = overview?.recentApplicants ?? [];
 
   return (

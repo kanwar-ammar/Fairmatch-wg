@@ -85,6 +85,14 @@ const GERMAN_CITIES = [
   "Saarbrucken",
 ] as const;
 
+function formatDisplayName(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
 function getTodayIsoDate() {
   const now = new Date();
   const year = now.getFullYear();
@@ -113,7 +121,11 @@ export function StudentProfile() {
   const currentUser = useAppSelector((state) => state.auth.currentUser);
 
   const profile = currentUser?.studentProfile;
-  const fullName = profile?.fullName || currentUser?.fullName || "Your profile";
+  const fullName = profile?.fullName
+    ? formatDisplayName(profile.fullName)
+    : currentUser?.fullName
+      ? formatDisplayName(currentUser.fullName)
+      : "Your profile";
   const avatarUrl = currentUser?.avatarUrl ?? "/placeholder-avatar.jpg";
   const initials =
     fullName
@@ -129,8 +141,8 @@ export function StudentProfile() {
   const [bio, setBio] = useState("");
   const [editBio, setEditBio] = useState(bio);
   const [editHouseBio, setEditHouseBio] = useState("");
-  const [editQuickDetails, setEditQuickDetails] = useState<EditableQuickDetails>(
-    {
+  const [editQuickDetails, setEditQuickDetails] =
+    useState<EditableQuickDetails>({
       age: "",
       university: "",
       contact: "",
@@ -140,8 +152,7 @@ export function StudentProfile() {
       moveInDate: "",
       semester: "",
       hobbies: "",
-    },
-  );
+    });
 
   const profileBio =
     profile?.bio ??
@@ -206,11 +217,14 @@ export function StudentProfile() {
         key: "budget",
         label: "Budget",
         value:
-          typeof profile?.budgetMin === "number" && typeof profile?.budgetMax === "number"
+          typeof profile?.budgetMin === "number" &&
+          typeof profile?.budgetMax === "number"
             ? `EUR ${profile.budgetMin} - EUR ${profile.budgetMax} / month`
             : QUICK_DETAIL_PLACEHOLDERS.budget,
-        isPlaceholder:
-          !(typeof profile?.budgetMin === "number" && typeof profile?.budgetMax === "number"),
+        isPlaceholder: !(
+          typeof profile?.budgetMin === "number" &&
+          typeof profile?.budgetMax === "number"
+        ),
       },
       {
         key: "move-in",
@@ -265,7 +279,10 @@ export function StudentProfile() {
     setSaveError("");
     setIsSaving(true);
 
-    if (editQuickDetails.moveInDate && editQuickDetails.moveInDate < todayIsoDate) {
+    if (
+      editQuickDetails.moveInDate &&
+      editQuickDetails.moveInDate < todayIsoDate
+    ) {
       setSaveError("Move-in date cannot be earlier than today.");
       setIsSaving(false);
       return;
@@ -446,9 +463,7 @@ export function StudentProfile() {
 
           <Card className="rounded-2xl border-border shadow-sm bg-primary/5">
             <CardHeader>
-              <CardTitle className="text-base font-semibold">
-                WG Bio
-              </CardTitle>
+              <CardTitle className="text-base font-semibold">WG Bio</CardTitle>
             </CardHeader>
             <CardContent>
               {isEditing ? (
@@ -482,38 +497,54 @@ export function StudentProfile() {
               {isEditing ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Age</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Age
+                    </p>
                     <Input
                       value={editQuickDetails.age}
-                      onChange={(e) => handleQuickDetailChange("age", e.target.value)}
+                      onChange={(e) =>
+                        handleQuickDetailChange("age", e.target.value)
+                      }
                       placeholder="24"
                       className="rounded-xl"
                       inputMode="numeric"
                     />
                   </div>
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">University</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      University
+                    </p>
                     <Input
                       value={editQuickDetails.university}
-                      onChange={(e) => handleQuickDetailChange("university", e.target.value)}
+                      onChange={(e) =>
+                        handleQuickDetailChange("university", e.target.value)
+                      }
                       placeholder="University of Bremen"
                       className="rounded-xl"
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
-                    <p className="text-xs font-medium text-muted-foreground">Contact</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Contact
+                    </p>
                     <Input
                       value={editQuickDetails.contact}
-                      onChange={(e) => handleQuickDetailChange("contact", e.target.value)}
+                      onChange={(e) =>
+                        handleQuickDetailChange("contact", e.target.value)
+                      }
                       placeholder="Email or phone"
                       className="rounded-xl"
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
-                    <p className="text-xs font-medium text-muted-foreground">Location (Germany)</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Location (Germany)
+                    </p>
                     <Input
                       value={editQuickDetails.location}
-                      onChange={(e) => handleQuickDetailChange("location", e.target.value)}
+                      onChange={(e) =>
+                        handleQuickDetailChange("location", e.target.value)
+                      }
                       placeholder="Berlin"
                       list="german-city-options"
                       className="rounded-xl"
@@ -525,49 +556,69 @@ export function StudentProfile() {
                     </datalist>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Budget Min (EUR)</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Budget Min (EUR)
+                    </p>
                     <Input
                       value={editQuickDetails.budgetMin}
-                      onChange={(e) => handleQuickDetailChange("budgetMin", e.target.value)}
+                      onChange={(e) =>
+                        handleQuickDetailChange("budgetMin", e.target.value)
+                      }
                       placeholder="350"
                       className="rounded-xl"
                       inputMode="numeric"
                     />
                   </div>
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Budget Max (EUR)</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Budget Max (EUR)
+                    </p>
                     <Input
                       value={editQuickDetails.budgetMax}
-                      onChange={(e) => handleQuickDetailChange("budgetMax", e.target.value)}
+                      onChange={(e) =>
+                        handleQuickDetailChange("budgetMax", e.target.value)
+                      }
                       placeholder="550"
                       className="rounded-xl"
                       inputMode="numeric"
                     />
                   </div>
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Move-in</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Move-in
+                    </p>
                     <Input
                       type="date"
                       value={editQuickDetails.moveInDate}
-                      onChange={(e) => handleQuickDetailChange("moveInDate", e.target.value)}
+                      onChange={(e) =>
+                        handleQuickDetailChange("moveInDate", e.target.value)
+                      }
                       min={todayIsoDate}
                       className="rounded-xl"
                     />
                   </div>
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Semester</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Semester
+                    </p>
                     <Input
                       value={editQuickDetails.semester}
-                      onChange={(e) => handleQuickDetailChange("semester", e.target.value)}
+                      onChange={(e) =>
+                        handleQuickDetailChange("semester", e.target.value)
+                      }
                       placeholder="3rd (Master's)"
                       className="rounded-xl"
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
-                    <p className="text-xs font-medium text-muted-foreground">Hobbies</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Hobbies
+                    </p>
                     <Textarea
                       value={editQuickDetails.hobbies}
-                      onChange={(e) => handleQuickDetailChange("hobbies", e.target.value)}
+                      onChange={(e) =>
+                        handleQuickDetailChange("hobbies", e.target.value)
+                      }
                       placeholder="Cooking, cycling, reading"
                       rows={3}
                       className="rounded-xl font-body text-sm leading-relaxed resize-none"

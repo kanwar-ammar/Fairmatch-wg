@@ -94,7 +94,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "userId required" }, { status: 400 });
     }
 
-    const [user, homeProfiles, applications] = await Promise.all([
+    const [user, homeProfiles, profileViews] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -143,23 +143,11 @@ export async function GET(request: Request) {
           prefParties: true,
         },
       }),
-      prisma.application.findMany({
-        where: { studentId: userId },
-        select: {
-          id: true,
-          status: true,
-          homeProfile: {
-            select: {
-              id: true,
-              ownerId: true,
-              memberships: {
-                where: { role: "OWNER" },
-                select: { userId: true },
-              },
-            },
-          },
-        },
-      }),
+      prisma.$queryRaw<Array<{ viewerId: string }>>`
+        SELECT viewerId
+        FROM ProfileView
+        WHERE studentId = ${userId}
+      `,
     ]);
 
     if (!user) {
@@ -188,28 +176,7 @@ export async function GET(request: Request) {
         )
       : 0;
 
-    const viewStatuses = new Set([
-      "VIEWED",
-      "INTERVIEW",
-      "ACCEPTED",
-      "REJECTED",
-    ]);
-    const uniqueViewers = new Set<string>();
-
-    for (const application of applications) {
-      if (!viewStatuses.has(application.status)) continue;
-      if (
-        application.homeProfile.ownerId &&
-        application.homeProfile.ownerId !== userId
-      ) {
-        uniqueViewers.add(application.homeProfile.ownerId);
-      }
-      for (const ownerMember of application.homeProfile.memberships) {
-        if (ownerMember.userId !== userId) {
-          uniqueViewers.add(ownerMember.userId);
-        }
-      }
-    }
+    const uniqueViewers = new Set(profileViews.map((item) => item.viewerId));
 
     const completeness = computeProfileCompleteness(
       user.studentProfile,

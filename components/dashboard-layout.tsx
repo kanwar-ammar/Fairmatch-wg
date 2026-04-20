@@ -3,6 +3,7 @@
 import React from "react";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Home,
@@ -21,6 +22,12 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAppSelector } from "@/store/hooks";
 
 const navItems = [
@@ -31,6 +38,14 @@ const navItems = [
   { label: "Applications", icon: FileText, id: "applications" },
   { label: "Messages", icon: MessageSquare, id: "messages" },
 ];
+
+function formatDisplayName(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -61,11 +76,11 @@ export function DashboardLayout({
         const [appRes, msgRes] = await Promise.all([
           fetch(
             `/api/applications/count?userId=${encodeURIComponent(currentUser.id)}&role=student`,
-            { cache: "no-store" }
+            { cache: "no-store" },
           ),
           fetch(
             `/api/messages/unread-count?userId=${encodeURIComponent(currentUser.id)}&role=student`,
-            { cache: "no-store" }
+            { cache: "no-store" },
           ),
         ]);
 
@@ -93,9 +108,12 @@ export function DashboardLayout({
     return () => clearInterval(interval);
   }, [currentUser?.id]);
 
-  const displayName = currentUser?.fullName?.trim() || "Your profile";
+  const displayName = currentUser?.fullName
+    ? formatDisplayName(currentUser.fullName)
+    : "Your profile";
   const university = currentUser?.studentProfile?.university;
   const avatarUrl = currentUser?.avatarUrl ?? "/placeholder-avatar.jpg";
+  const canUseResident = Boolean(currentUser?.capabilities?.canUseResident);
   const initials =
     displayName
       .split(" ")
@@ -126,8 +144,15 @@ export function DashboardLayout({
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-            <ShieldCheck className="h-5 w-5 text-primary-foreground" />
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-background">
+            <Image
+              src="/logo.png"
+              alt="FairMatch logo"
+              width={40}
+              height={40}
+              className="h-full w-full object-cover"
+              priority
+            />
           </div>
           <div>
             <h1 className="text-lg font-bold text-sidebar-foreground tracking-tight">
@@ -221,14 +246,29 @@ export function DashboardLayout({
         {/* Bottom */}
         <div className="border-t border-sidebar-border p-3 flex flex-col gap-1">
           {onSwitchRole && (
-            <button
-              type="button"
-              onClick={onSwitchRole}
-              className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-primary hover:bg-sidebar-accent transition-colors"
-            >
-              <ArrowLeftRight className="h-[18px] w-[18px]" />
-              Switch to Resident
-            </button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="block w-full">
+                    <button
+                      type="button"
+                      onClick={onSwitchRole}
+                      disabled={!canUseResident}
+                      className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent text-primary hover:bg-sidebar-accent"
+                    >
+                      <ArrowLeftRight className="h-[18px] w-[18px]" />
+                      Switch to Resident
+                    </button>
+                  </span>
+                </TooltipTrigger>
+                {!canUseResident ? (
+                  <TooltipContent side="right" className="max-w-xs">
+                    You can switch to your resident profile after you are added
+                    to a WG.
+                  </TooltipContent>
+                ) : null}
+              </Tooltip>
+            </TooltipProvider>
           )}
           <button
             type="button"

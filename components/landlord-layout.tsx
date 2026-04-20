@@ -3,6 +3,7 @@
 import React from "react";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import {
   Home,
   ClipboardList,
@@ -28,6 +29,14 @@ const landlordNavItems = [
   { label: "Applications", icon: Inbox, id: "ll-applications" },
   { label: "Messages", icon: MessageSquare, id: "ll-messages" },
 ];
+
+function formatDisplayName(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
 
 interface LandlordLayoutProps {
   children: React.ReactNode;
@@ -90,7 +99,9 @@ export function LandlordLayout({
     return () => clearInterval(interval);
   }, [currentUser?.id]);
 
-  const displayName = currentUser?.fullName?.trim() || "Resident account";
+  const displayName = currentUser?.fullName
+    ? formatDisplayName(currentUser.fullName)
+    : "Resident account";
   const avatarUrl = currentUser?.avatarUrl ?? "/placeholder-avatar.jpg";
   const homeLabel = currentUser?.primaryHomeLabel;
   const initials =
@@ -123,8 +134,15 @@ export function LandlordLayout({
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-            <ShieldCheck className="h-5 w-5 text-primary-foreground" />
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-background">
+            <Image
+              src="/logo.png"
+              alt="FairMatch logo"
+              width={40}
+              height={40}
+              className="h-full w-full object-cover"
+              priority
+            />
           </div>
           <div>
             <h1 className="text-lg font-bold text-sidebar-foreground tracking-tight">

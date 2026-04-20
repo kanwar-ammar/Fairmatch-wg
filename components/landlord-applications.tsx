@@ -258,6 +258,25 @@ export function LandlordApplications({
     }
   };
 
+  const openProfile = async (application: ResidentApplication) => {
+    if (currentUser?.id) {
+      try {
+        await fetch("/api/profile-views", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentId: application.student.id,
+            viewerId: currentUser.id,
+          }),
+        });
+      } catch (error) {
+        console.error("Failed to record profile view:", error);
+      }
+    }
+
+    setProfileApplication(application);
+  };
+
   const filtered = useMemo(() => {
     if (activeTab === "all") return applications;
     return applications.filter(
@@ -499,7 +518,7 @@ export function LandlordApplications({
                             variant="outline"
                             size="sm"
                             className="rounded-xl gap-1"
-                            onClick={() => setProfileApplication(application)}
+                            onClick={() => void openProfile(application)}
                           >
                             View Profile
                           </Button>
