@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 
+function getTodayIsoDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 async function buildCurrentUserPayload(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -17,7 +25,8 @@ async function buildCurrentUserPayload(userId: string) {
         },
       },
       memberships: {
-        include: {
+        select: {
+          homeProfileId: true,
           homeProfile: {
             select: {
               title: true,
@@ -28,6 +37,7 @@ async function buildCurrentUserPayload(userId: string) {
       },
       ownedHomes: {
         select: {
+          id: true,
           title: true,
           district: true,
         },
@@ -57,6 +67,7 @@ async function buildCurrentUserPayload(userId: string) {
 
   const primaryHome = user.ownedHomes[0] ?? user.memberships[0]?.homeProfile;
   const primaryHomeLabel = primaryHome ? `${primaryHome.title}` : null;
+  const primaryHomeId = user.ownedHomes[0]?.id ?? user.memberships[0]?.homeProfileId ?? null;
 
   return {
     id: user.id,
@@ -68,6 +79,7 @@ async function buildCurrentUserPayload(userId: string) {
     residentProfile: user.residentProfile,
     verificationDocs: user.verificationDocs,
     primaryHomeLabel,
+    primaryHomeId,
     capabilities: {
       canUseStudent: true,
       canUseResident,
@@ -115,10 +127,16 @@ export async function PUT(request: Request) {
     const body = (await request.json()) as {
       userId?: string;
       bio?: string;
+      houseBio?: string;
+      age?: number | null;
+      university?: string | null;
+      location?: string | null;
       budgetMin?: number | null;
       budgetMax?: number | null;
       moveInDate?: string | null;
       semester?: string | null;
+      contact?: string | null;
+      hobbies?: string | null;
       preferredDistricts?: string | null;
     };
 
@@ -145,24 +163,43 @@ export async function PUT(request: Request) {
       existingUser.displayName ??
       existingUser.email;
 
+    if (body.moveInDate && body.moveInDate < getTodayIsoDate()) {
+      return NextResponse.json(
+        { error: "Move-in date cannot be earlier than today." },
+        { status: 400 },
+      );
+    }
+
     await prisma.studentProfile.upsert({
       where: { userId: body.userId },
       update: {
         bio: body.bio ?? null,
+        houseBio: body.houseBio ?? null,
+        age: body.age ?? null,
+        university: body.university ?? null,
+        location: body.location ?? null,
         budgetMin: body.budgetMin ?? null,
         budgetMax: body.budgetMax ?? null,
         moveInDate: body.moveInDate ?? null,
         semester: body.semester ?? null,
+        contact: body.contact ?? null,
+        hobbies: body.hobbies ?? null,
         preferredDistricts: body.preferredDistricts ?? null,
       },
       create: {
         userId: body.userId,
         fullName: fullNameForStudentProfile,
         bio: body.bio ?? null,
+        houseBio: body.houseBio ?? null,
+        age: body.age ?? null,
+        university: body.university ?? null,
+        location: body.location ?? null,
         budgetMin: body.budgetMin ?? null,
         budgetMax: body.budgetMax ?? null,
         moveInDate: body.moveInDate ?? null,
         semester: body.semester ?? null,
+        contact: body.contact ?? null,
+        hobbies: body.hobbies ?? null,
         preferredDistricts: body.preferredDistricts ?? null,
       },
     });

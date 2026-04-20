@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Home,
@@ -10,6 +10,7 @@ import {
   Sliders,
   Search,
   FileText,
+  MessageSquare,
   LogOut,
   Menu,
   X,
@@ -28,6 +29,7 @@ const navItems = [
   { label: "Preferences", icon: Sliders, id: "preferences" },
   { label: "Browse WGs", icon: Search, id: "browse" },
   { label: "Applications", icon: FileText, id: "applications" },
+  { label: "Messages", icon: MessageSquare, id: "messages" },
 ];
 
 interface DashboardLayoutProps {
@@ -46,7 +48,50 @@ export function DashboardLayout({
   onSignOut,
 }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [applicationCount, setApplicationCount] = useState(0);
+  const [messageCount, setMessageCount] = useState(0);
   const currentUser = useAppSelector((state) => state.auth.currentUser);
+
+  // Fetch application count (pending + interview)
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const fetchCounts = async () => {
+      try {
+        const [appRes, msgRes] = await Promise.all([
+          fetch(
+            `/api/applications/count?userId=${encodeURIComponent(currentUser.id)}&role=student`,
+            { cache: "no-store" }
+          ),
+          fetch(
+            `/api/messages/unread-count?userId=${encodeURIComponent(currentUser.id)}&role=student`,
+            { cache: "no-store" }
+          ),
+        ]);
+
+        if (appRes.ok) {
+          const data = (await appRes.json()) as { count: number };
+          setApplicationCount(data.count);
+        }
+
+        if (msgRes.ok) {
+          const data = (await msgRes.json()) as { count: number };
+          setMessageCount(data.count);
+        }
+      } catch (error) {
+        console.error("Failed to fetch counts:", error);
+      }
+    };
+
+    void fetchCounts();
+
+    // Refresh every 10 seconds
+    const interval = setInterval(() => {
+      void fetchCounts();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [currentUser?.id]);
 
   const displayName = currentUser?.fullName?.trim() || "Your profile";
   const university = currentUser?.studentProfile?.university;
@@ -157,9 +202,14 @@ export function DashboardLayout({
                 >
                   <item.icon className="h-[18px] w-[18px]" />
                   {item.label}
-                  {item.id === "applications" && (
+                  {item.id === "applications" && applicationCount > 0 && (
                     <Badge className="ml-auto h-5 min-w-5 rounded-full bg-primary-foreground/20 text-[10px] font-bold text-inherit border-0 px-1.5">
-                      3
+                      {applicationCount}
+                    </Badge>
+                  )}
+                  {item.id === "messages" && messageCount > 0 && (
+                    <Badge className="ml-auto h-5 min-w-5 rounded-full bg-primary-foreground/20 text-[10px] font-bold text-inherit border-0 px-1.5">
+                      {messageCount}
                     </Badge>
                   )}
                 </button>

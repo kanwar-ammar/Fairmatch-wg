@@ -68,6 +68,8 @@ model User {
   memberships       HomeMembership[]
   ownedHomes        HomeProfile[]         @relation("HomeOwner")
   applications      Application[]         @relation("StudentApplications")
+  savedListings     SavedListing[]
+  sentMessages      ApplicationMessage[]  @relation("ApplicationMessageSender")
 }
 
 model UserSettings {
@@ -86,10 +88,13 @@ model StudentProfile {
   fullName           String
   age                Int?
   bio                String?
+  houseBio           String?
   university         String?
   degreeProgram      String?
   semester           String?
   location           String?
+  contact            String?
+  hobbies            String?
   languages          String?
   budgetMin          Int?
   budgetMax          Int?
@@ -134,6 +139,16 @@ model HomeProfile {
   verified       Boolean         @default(false)
   isLive         Boolean         @default(true)
   vibeSummary    String?
+  prefCleanliness Int            @default(50)
+  prefRecycling   Int            @default(50)
+  prefDiy         Int            @default(50)
+  prefCooking     Int            @default(50)
+  prefQuietness   Int            @default(50)
+  prefMusic       Int            @default(50)
+  prefFitness     Int            @default(50)
+  prefStudyHabits Int            @default(50)
+  prefSocial      Int            @default(50)
+  prefParties     Int            @default(50)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   memberships    HomeMembership[]
@@ -141,6 +156,8 @@ model HomeProfile {
   photos         HomePhoto[]
   rules          HomeRule[]
   applications   Application[]
+  savedBy        SavedListing[]
+  messages       ApplicationMessage[]
 }
 
 model HomeMembership {
@@ -218,8 +235,33 @@ model Application {
   appliedAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
   interviews    Interview[]
+  messages      ApplicationMessage[]
 
   @@unique([studentId, homeProfileId])
+}
+
+model SavedListing {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  homeProfileId String
+  homeProfile   HomeProfile @relation(fields: [homeProfileId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@unique([userId, homeProfileId])
+}
+
+model ApplicationMessage {
+  id              String      @id @default(cuid())
+  applicationId   String
+  application     Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  homeProfileId   String
+  homeProfile     HomeProfile @relation(fields: [homeProfileId], references: [id], onDelete: Cascade)
+  senderId        String
+  sender          User        @relation("ApplicationMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  text            String
+  createdAt       DateTime    @default(now())
+  readByUserIds   String      @default("") // JSON array as string: '["userId1","userId2"]'
 }
 
 model Interview {

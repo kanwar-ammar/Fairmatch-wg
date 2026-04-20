@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,39 +9,39 @@ import {
   ShieldCheck,
   Eye,
   Heart,
-  MessageSquare,
   ArrowRight,
   Sparkles,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAppSelector } from "@/store/hooks";
 
-const recentWGs = [
-  {
-    id: 1,
-    title: "Sunny 3er-WG in Kreuzberg",
-    price: 480,
-    match: 92,
-    size: "18m\u00B2",
-    available: "Mar 1",
-  },
-  {
-    id: 2,
-    title: "Cozy room near TU Berlin",
-    price: 420,
-    match: 87,
-    size: "14m\u00B2",
-    available: "Apr 1",
-  },
-  {
-    id: 3,
-    title: "Green WG in Prenzlauer Berg",
-    price: 510,
-    match: 84,
-    size: "16m\u00B2",
-    available: "Mar 15",
-  },
-];
+type TopMatch = {
+  id: string;
+  title: string;
+  price: number;
+  roomSize: string;
+  availableFrom: string | null;
+  matchScore: number;
+};
+
+type StudentOverviewResponse = {
+  uniqueProfileViews: number;
+  wgMatchesCount: number;
+  averageMatch: number;
+  strongMatches: number;
+  topMatches: TopMatch[];
+  profileCompleteness: {
+    percentage: number;
+    missing: string[];
+  };
+};
 
 export function DashboardOverview({
   onNavigate,
@@ -49,8 +49,52 @@ export function DashboardOverview({
   onNavigate: (tab: string) => void;
 }) {
   const currentUser = useAppSelector((state) => state.auth.currentUser);
+  const [overview, setOverview] = useState<StudentOverviewResponse | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const displayName = currentUser?.fullName?.trim() || "Your profile";
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setLoading(false);
+      return;
+    }
+
+    const loadOverview = async () => {
+      try {
+        const response = await fetch(
+          `/api/overview/student?userId=${encodeURIComponent(currentUser.id)}`,
+          { cache: "no-store" },
+        );
+        const result = (await response.json()) as StudentOverviewResponse & {
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to load overview");
+        }
+
+        setOverview(result);
+      } catch (error) {
+        console.error("Failed to load student overview:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadOverview();
+
+    const interval = window.setInterval(() => {
+      void loadOverview();
+    }, 15000);
+
+    return () => window.clearInterval(interval);
+  }, [currentUser?.id]);
+
+  const completeness = overview?.profileCompleteness.percentage ?? 0;
+  const missingFields = overview?.profileCompleteness.missing ?? [];
+  const topMatches = overview?.topMatches ?? [];
+  const hasMissing = missingFields.length > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -59,11 +103,12 @@ export function DashboardOverview({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-xl font-bold text-foreground">
-              Welcom {displayName}
+              Welcome {displayName}
             </h3>
             <p className="mt-1 text-sm text-muted-foreground font-body leading-relaxed">
-              Your profile is looking great. You have 3 new matches waiting for
-              you.
+              {loading
+                ? "Loading your latest matching insights..."
+                : `You currently have ${overview?.strongMatches ?? 0} strong WG matches waiting for you.`}
             </p>
           </div>
           <Button
@@ -81,30 +126,83 @@ export function DashboardOverview({
         <StatCard
           icon={ShieldCheck}
           label="Verification"
-          value="Complete"
+          value={
+            currentUser?.studentProfile?.verificationStatus === "VERIFIED"
+              ? "Complete"
+              : "Pending"
+          }
           accent
         />
-        <StatCard icon={Eye} label="Profile Views" value="24" />
-        <StatCard icon={Heart} label="WG Matches" value="12" />
-        <StatCard icon={MessageSquare} label="Messages" value="5" />
+        <StatCard
+          icon={Eye}
+          label="Unique Profile Views"
+          value={String(overview?.uniqueProfileViews ?? 0)}
+        />
+        <StatCard
+          icon={Heart}
+          label="WG Match Avg"
+          value={`${overview?.averageMatch ?? 0}%`}
+          subtext={`${overview?.wgMatchesCount ?? 0} live listings`}
+        />
       </div>
 
       {/* Profile completeness */}
       <Card className="rounded-2xl border-border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">
-            Profile Completeness
-          </CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base font-semibold">
+              Profile Completeness
+            </CardTitle>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    What is missing?
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  {hasMissing ? (
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold">Missing fields</p>
+                      <ul className="text-xs space-y-0.5">
+                        {missingFields.map((field) => (
+                          <li key={field}>- {field}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <p className="text-xs font-semibold">All profile details are complete.</p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
-            <Progress value={78} className="h-2.5 flex-1" />
-            <span className="text-sm font-bold text-primary">78%</span>
+            <Progress value={completeness} className="h-2.5 flex-1" />
+            <span className="text-sm font-bold text-primary">{completeness}%</span>
           </div>
-          <p className="mt-2 text-sm text-muted-foreground font-body">
-            Add a photo gallery and complete your preferences to boost your
-            match rate.
-          </p>
+          {hasMissing ? (
+            <p className="mt-2 text-sm text-muted-foreground font-body">
+              Complete your remaining profile details to improve matching. {" "}
+              <button
+                type="button"
+                className="text-primary font-medium hover:underline"
+                onClick={() => onNavigate("profile")}
+              >
+                Go to profile
+              </button>
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-muted-foreground font-body">
+              Your profile is complete. You are at 100%.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -124,10 +222,11 @@ export function DashboardOverview({
           </button>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {recentWGs.map((wg) => (
+          {topMatches.map((wg) => (
             <Card
               key={wg.id}
               className="group cursor-pointer rounded-2xl border-border shadow-sm transition-all hover:shadow-md hover:border-primary/30"
+              onClick={() => onNavigate("browse")}
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2">
@@ -135,13 +234,13 @@ export function DashboardOverview({
                     {wg.title}
                   </h4>
                   <Badge className="shrink-0 rounded-full bg-accent/15 text-accent border-0 text-xs font-bold px-2">
-                    {wg.match}%
+                    {wg.matchScore}%
                   </Badge>
                 </div>
                 <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground font-body">
-                  <span>{wg.size}</span>
+                  <span>{wg.roomSize}</span>
                   <span className="h-1 w-1 rounded-full bg-border" />
-                  <span>From {wg.available}</span>
+                  <span>From {wg.availableFrom || "Flexible"}</span>
                 </div>
                 <p className="mt-2 text-lg font-bold text-foreground">
                   {"\u20AC"}
@@ -154,6 +253,13 @@ export function DashboardOverview({
             </Card>
           ))}
         </div>
+        {!topMatches.length ? (
+          <Card className="rounded-2xl border-dashed mt-4">
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              No live WG matches available yet.
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </div>
   );
@@ -168,6 +274,7 @@ function StatCard({
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
+  subtext?: string;
   accent?: boolean;
 }) {
   return (
@@ -186,6 +293,9 @@ function StatCard({
           <p className="text-lg font-bold text-foreground leading-tight">
             {value}
           </p>
+          {subtext ? (
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{subtext}</p>
+          ) : null}
         </div>
       </CardContent>
     </Card>

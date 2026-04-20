@@ -8,12 +8,13 @@ import { StudentProfile } from "@/components/student-profile";
 import { LifestylePreferences } from "@/components/lifestyle-preferences";
 import { BrowseWGs } from "@/components/browse-wgs";
 import { ApplicationsTracker } from "@/components/applications-tracker";
+import { StudentMessages } from "@/components/student-messages";
 import { LandlordLayout } from "@/components/landlord-layout";
 import { LandlordOverview } from "@/components/landlord-overview";
 import { LandlordListing } from "@/components/landlord-listing";
 import { LandlordHousemates } from "@/components/landlord-housemates";
 import { LandlordApplications } from "@/components/landlord-applications";
-import { LandlordInterviews } from "@/components/landlord-interviews";
+import { LandlordMessages } from "@/components/landlord-messages";
 import {
   clearStoredAuthUser,
   getStoredAuthUser,
@@ -123,10 +124,10 @@ export default function Page() {
         {landlordTab === "ll-housemates" && <LandlordHousemates />}
         {landlordTab === "ll-applications" && (
           <LandlordApplications
-            onNavigateInterviews={() => setLandlordTab("ll-interviews")}
+            onNavigateMessages={() => setLandlordTab("ll-messages")}
           />
         )}
-        {landlordTab === "ll-interviews" && <LandlordInterviews />}
+        {landlordTab === "ll-messages" && <LandlordMessages />}
       </LandlordLayout>
     );
   }
@@ -148,7 +149,12 @@ export default function Page() {
       {studentTab === "profile" && <StudentProfile />}
       {studentTab === "preferences" && <LifestylePreferences />}
       {studentTab === "browse" && <BrowseWGs />}
-      {studentTab === "applications" && <ApplicationsTracker />}
+      {studentTab === "applications" && (
+        <ApplicationsTracker
+          onNavigateMessages={() => setStudentTab("messages")}
+        />
+      )}
+      {studentTab === "messages" && <StudentMessages />}
     </DashboardLayout>
   );
 }

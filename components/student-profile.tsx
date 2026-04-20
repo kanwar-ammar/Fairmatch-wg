@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setCurrentUserFromDatabase } from "@/store/auth-slice";
 import type { CurrentUser, VerificationDocSummary } from "@/store/auth-slice";
+import { toast } from "@/hooks/use-toast";
 import {
   ShieldCheck,
   Upload,
@@ -23,22 +24,89 @@ import {
 } from "lucide-react";
 
 type EditableQuickDetails = {
+  age: string;
+  university: string;
+  contact: string;
+  location: string;
   budgetMin: string;
   budgetMax: string;
   moveInDate: string;
   semester: string;
-  preferredDistricts: string;
+  hobbies: string;
 };
 
 const QUICK_DETAIL_PLACEHOLDERS = {
+  location: "Select your city",
   budget: "Set your budget range",
   moveIn: "Add your preferred move-in timeline",
   semester: "Add your current semester",
-  district: "Add preferred districts",
 };
+
+const GERMAN_CITIES = [
+  "Berlin",
+  "Hamburg",
+  "Munich",
+  "Cologne",
+  "Frankfurt am Main",
+  "Stuttgart",
+  "Dusseldorf",
+  "Dortmund",
+  "Essen",
+  "Leipzig",
+  "Bremen",
+  "Dresden",
+  "Hanover",
+  "Nuremberg",
+  "Duisburg",
+  "Bochum",
+  "Wuppertal",
+  "Bielefeld",
+  "Bonn",
+  "Munster",
+  "Karlsruhe",
+  "Mannheim",
+  "Augsburg",
+  "Wiesbaden",
+  "Gelsenkirchen",
+  "Monchengladbach",
+  "Braunschweig",
+  "Chemnitz",
+  "Kiel",
+  "Aachen",
+  "Halle (Saale)",
+  "Magdeburg",
+  "Freiburg im Breisgau",
+  "Krefeld",
+  "Lubeck",
+  "Mainz",
+  "Erfurt",
+  "Rostock",
+  "Kassel",
+  "Saarbrucken",
+] as const;
+
+function getTodayIsoDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatMoveInDate(value: string | null | undefined) {
+  if (!value) return QUICK_DETAIL_PLACEHOLDERS.moveIn;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export function StudentProfile() {
   const dispatch = useAppDispatch();
+  const todayIsoDate = useMemo(() => getTodayIsoDate(), []);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -56,18 +124,22 @@ export function StudentProfile() {
       .join("") || "U";
   const isVerified = profile?.verificationStatus === "VERIFIED";
   const hasLocation = Boolean(profile?.location);
-  const hasAge = typeof profile?.age === "number";
   const hasLanguages = Boolean(profile?.languages);
 
   const [bio, setBio] = useState("");
   const [editBio, setEditBio] = useState(bio);
+  const [editHouseBio, setEditHouseBio] = useState("");
   const [editQuickDetails, setEditQuickDetails] = useState<EditableQuickDetails>(
     {
+      age: "",
+      university: "",
+      contact: "",
+      location: "",
       budgetMin: "",
       budgetMax: "",
       moveInDate: "",
       semester: "",
-      preferredDistricts: "",
+      hobbies: "",
     },
   );
 
@@ -78,16 +150,21 @@ export function StudentProfile() {
   useEffect(() => {
     setBio(profileBio);
     setEditBio(profileBio);
+    setEditHouseBio(profile?.houseBio ?? "");
     setEditQuickDetails({
+      age: typeof profile?.age === "number" ? String(profile.age) : "",
+      university: profile?.university ?? "",
+      contact: profile?.contact ?? "",
+      location: profile?.location ?? "",
       budgetMin:
         typeof profile?.budgetMin === "number" ? String(profile.budgetMin) : "",
       budgetMax:
         typeof profile?.budgetMax === "number" ? String(profile.budgetMax) : "",
       moveInDate: profile?.moveInDate ?? "",
       semester: profile?.semester ?? "",
-      preferredDistricts: profile?.preferredDistricts ?? "",
+      hobbies: profile?.hobbies ?? "",
     });
-  }, [profileBio]);
+  }, [profile, profileBio]);
 
   const verificationDocs = useMemo(() => {
     const defaults: VerificationDocSummary[] = [
@@ -120,6 +197,12 @@ export function StudentProfile() {
   const quickDetailRows = useMemo(
     () => [
       {
+        key: "location",
+        label: "Location",
+        value: profile?.location || QUICK_DETAIL_PLACEHOLDERS.location,
+        isPlaceholder: !profile?.location,
+      },
+      {
         key: "budget",
         label: "Budget",
         value:
@@ -132,7 +215,7 @@ export function StudentProfile() {
       {
         key: "move-in",
         label: "Move-in",
-        value: profile?.moveInDate || QUICK_DETAIL_PLACEHOLDERS.moveIn,
+        value: formatMoveInDate(profile?.moveInDate),
         isPlaceholder: !profile?.moveInDate,
       },
       {
@@ -140,12 +223,6 @@ export function StudentProfile() {
         label: "Semester",
         value: profile?.semester || QUICK_DETAIL_PLACEHOLDERS.semester,
         isPlaceholder: !profile?.semester,
-      },
-      {
-        key: "district",
-        label: "District",
-        value: profile?.preferredDistricts || QUICK_DETAIL_PLACEHOLDERS.district,
-        isPlaceholder: !profile?.preferredDistricts,
       },
     ],
     [profile],
@@ -160,6 +237,15 @@ export function StudentProfile() {
       [field]: value,
     }));
   };
+
+  const hobbyItems = useMemo(
+    () =>
+      (profile?.hobbies ?? "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    [profile?.hobbies],
+  );
 
   const parseOptionalNumber = (value: string) => {
     const trimmed = value.trim();
@@ -179,6 +265,12 @@ export function StudentProfile() {
     setSaveError("");
     setIsSaving(true);
 
+    if (editQuickDetails.moveInDate && editQuickDetails.moveInDate < todayIsoDate) {
+      setSaveError("Move-in date cannot be earlier than today.");
+      setIsSaving(false);
+      return;
+    }
+
     try {
       const response = await fetch("/api/users/current", {
         method: "PUT",
@@ -186,11 +278,16 @@ export function StudentProfile() {
         body: JSON.stringify({
           userId: currentUser.id,
           bio: parseOptionalText(editBio),
+          houseBio: parseOptionalText(editHouseBio),
+          age: parseOptionalNumber(editQuickDetails.age),
+          university: parseOptionalText(editQuickDetails.university),
+          contact: parseOptionalText(editQuickDetails.contact),
+          location: parseOptionalText(editQuickDetails.location),
           budgetMin: parseOptionalNumber(editQuickDetails.budgetMin),
           budgetMax: parseOptionalNumber(editQuickDetails.budgetMax),
           moveInDate: parseOptionalText(editQuickDetails.moveInDate),
           semester: parseOptionalText(editQuickDetails.semester),
-          preferredDistricts: parseOptionalText(editQuickDetails.preferredDistricts),
+          hobbies: parseOptionalText(editQuickDetails.hobbies),
         }),
       });
 
@@ -206,6 +303,11 @@ export function StudentProfile() {
 
       dispatch(setCurrentUserFromDatabase(result.user));
       setBio(result.user.studentProfile?.bio ?? profileBio);
+      setEditHouseBio(result.user.studentProfile?.houseBio ?? "");
+      toast({
+        title: "Profile saved",
+        description: "Your student profile and WG summary were updated.",
+      });
       setIsEditing(false);
     } catch {
       setSaveError("Unable to save profile.");
@@ -249,6 +351,18 @@ export function StudentProfile() {
                     {profile.degreeProgram}
                   </span>
                 ) : null}
+                {typeof profile?.age === "number" ? (
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {profile.age} years old
+                  </span>
+                ) : null}
+                {profile?.university ? (
+                  <span className="flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    {profile.university}
+                  </span>
+                ) : null}
                 {hasLocation ? (
                   <span className="flex items-center gap-1.5">
                     <MapPin className="h-3.5 w-3.5" />
@@ -257,10 +371,10 @@ export function StudentProfile() {
                 ) : null}
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground font-body">
-                {hasAge ? (
+                {profile?.contact ? (
                   <span className="flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5" />
-                    {profile?.age} years old
+                    <Upload className="h-3.5 w-3.5" />
+                    {profile.contact}
                   </span>
                 ) : null}
                 {hasLanguages ? (
@@ -307,7 +421,7 @@ export function StudentProfile() {
           <Card className="rounded-2xl border-border shadow-sm">
             <CardHeader>
               <CardTitle className="text-base font-semibold">
-                About Me
+                Personal Bio
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -330,6 +444,33 @@ export function StudentProfile() {
             </CardContent>
           </Card>
 
+          <Card className="rounded-2xl border-border shadow-sm bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">
+                WG Bio
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isEditing ? (
+                <Textarea
+                  value={editHouseBio}
+                  onChange={(e) => setEditHouseBio(e.target.value)}
+                  rows={4}
+                  className="rounded-xl font-body text-sm leading-relaxed resize-none"
+                  placeholder="A short summary that appears on your current WG listing..."
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground font-body leading-relaxed">
+                  {profile?.houseBio ||
+                    "Add a short house-specific summary for your current WG listing."}
+                </p>
+              )}
+              <p className="mt-3 text-xs text-muted-foreground">
+                This summary is shared with your current WG listing only.
+              </p>
+            </CardContent>
+          </Card>
+
           {/* Quick details */}
           <Card className="rounded-2xl border-border shadow-sm">
             <CardHeader>
@@ -340,6 +481,49 @@ export function StudentProfile() {
             <CardContent>
               {isEditing ? (
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Age</p>
+                    <Input
+                      value={editQuickDetails.age}
+                      onChange={(e) => handleQuickDetailChange("age", e.target.value)}
+                      placeholder="24"
+                      className="rounded-xl"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">University</p>
+                    <Input
+                      value={editQuickDetails.university}
+                      onChange={(e) => handleQuickDetailChange("university", e.target.value)}
+                      placeholder="University of Bremen"
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <p className="text-xs font-medium text-muted-foreground">Contact</p>
+                    <Input
+                      value={editQuickDetails.contact}
+                      onChange={(e) => handleQuickDetailChange("contact", e.target.value)}
+                      placeholder="Email or phone"
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <p className="text-xs font-medium text-muted-foreground">Location (Germany)</p>
+                    <Input
+                      value={editQuickDetails.location}
+                      onChange={(e) => handleQuickDetailChange("location", e.target.value)}
+                      placeholder="Berlin"
+                      list="german-city-options"
+                      className="rounded-xl"
+                    />
+                    <datalist id="german-city-options">
+                      {GERMAN_CITIES.map((city) => (
+                        <option key={city} value={city} />
+                      ))}
+                    </datalist>
+                  </div>
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">Budget Min (EUR)</p>
                     <Input
@@ -363,9 +547,10 @@ export function StudentProfile() {
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">Move-in</p>
                     <Input
+                      type="date"
                       value={editQuickDetails.moveInDate}
                       onChange={(e) => handleQuickDetailChange("moveInDate", e.target.value)}
-                      placeholder="March 2026"
+                      min={todayIsoDate}
                       className="rounded-xl"
                     />
                   </div>
@@ -379,19 +564,36 @@ export function StudentProfile() {
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
-                    <p className="text-xs font-medium text-muted-foreground">Preferred districts</p>
-                    <Input
-                      value={editQuickDetails.preferredDistricts}
-                      onChange={(e) =>
-                        handleQuickDetailChange("preferredDistricts", e.target.value)
-                      }
-                      placeholder="Kreuzberg, Neukolln, Mitte"
-                      className="rounded-xl"
+                    <p className="text-xs font-medium text-muted-foreground">Hobbies</p>
+                    <Textarea
+                      value={editQuickDetails.hobbies}
+                      onChange={(e) => handleQuickDetailChange("hobbies", e.target.value)}
+                      placeholder="Cooking, cycling, reading"
+                      rows={3}
+                      className="rounded-xl font-body text-sm leading-relaxed resize-none"
                     />
+                    <p className="text-[11px] text-muted-foreground">
+                      Separate hobbies with commas.
+                    </p>
                   </div>
                 </div>
               ) : (
                 <dl className="flex flex-col gap-3">
+                  <DetailRow
+                    label="Age"
+                    value={profile?.age ? String(profile.age) : "Add your age"}
+                    isPlaceholder={!profile?.age}
+                  />
+                  <DetailRow
+                    label="University"
+                    value={profile?.university || "Add your university"}
+                    isPlaceholder={!profile?.university}
+                  />
+                  <DetailRow
+                    label="Contact"
+                    value={profile?.contact || "Add a contact method"}
+                    isPlaceholder={!profile?.contact}
+                  />
                   {quickDetailRows.map((detail) => (
                     <DetailRow
                       key={detail.key}
@@ -401,6 +603,31 @@ export function StudentProfile() {
                     />
                   ))}
                 </dl>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-border shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">Hobbies</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {hobbyItems.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {hobbyItems.map((hobby) => (
+                    <Badge
+                      key={hobby}
+                      variant="secondary"
+                      className="rounded-full text-[10px] font-semibold px-2.5 py-1"
+                    >
+                      {hobby}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground font-body">
+                  Add a few hobbies so housemates can get to know you faster.
+                </p>
               )}
             </CardContent>
           </Card>

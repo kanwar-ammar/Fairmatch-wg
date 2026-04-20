@@ -18,10 +18,13 @@ export type CurrentUser = {
     fullName?: string | null;
     age?: number | null;
     bio?: string | null;
+    houseBio?: string | null;
     university?: string | null;
     degreeProgram?: string | null;
     semester?: string | null;
     location?: string | null;
+    contact?: string | null;
+    hobbies?: string | null;
     languages?: string | null;
     budgetMin?: number | null;
     budgetMax?: number | null;
@@ -40,6 +43,7 @@ export type CurrentUser = {
     canUseResident: boolean;
   };
   primaryHomeLabel?: string | null;
+  primaryHomeId?: string | null;
 };
 
 type AuthState = {

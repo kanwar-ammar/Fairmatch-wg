@@ -2,13 +2,14 @@
 
 import React from "react"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { useAppSelector } from "@/store/hooks"
 import {
   Sparkles,
   Leaf,
@@ -31,7 +32,6 @@ interface Preference {
   description: string
   icon: React.ComponentType<{ className?: string }>
   value: number
-  color: string
 }
 
 const initialPreferences: Preference[] = [
@@ -41,7 +41,6 @@ const initialPreferences: Preference[] = [
     description: "How important is a tidy shared space?",
     icon: Sparkles,
     value: 85,
-    color: "text-primary",
   },
   {
     id: "recycling",
@@ -49,7 +48,6 @@ const initialPreferences: Preference[] = [
     description: "Commitment to waste separation and eco habits",
     icon: Leaf,
     value: 90,
-    color: "text-accent",
   },
   {
     id: "diy",
@@ -57,7 +55,6 @@ const initialPreferences: Preference[] = [
     description: "Willingness to fix things around the apartment",
     icon: Wrench,
     value: 60,
-    color: "text-primary",
   },
   {
     id: "cooking",
@@ -65,7 +62,6 @@ const initialPreferences: Preference[] = [
     description: "Interest in cooking together or sharing meals",
     icon: ChefHat,
     value: 75,
-    color: "text-accent",
   },
   {
     id: "quiet",
@@ -73,7 +69,6 @@ const initialPreferences: Preference[] = [
     description: "Preference for a calm and quiet environment",
     icon: Moon,
     value: 70,
-    color: "text-primary",
   },
   {
     id: "music",
@@ -81,7 +76,6 @@ const initialPreferences: Preference[] = [
     description: "Comfort with music, instruments, or general noise",
     icon: Music,
     value: 45,
-    color: "text-accent",
   },
   {
     id: "fitness",
@@ -89,7 +83,6 @@ const initialPreferences: Preference[] = [
     description: "Active lifestyle and sports enthusiasm",
     icon: Dumbbell,
     value: 65,
-    color: "text-primary",
   },
   {
     id: "study",
@@ -97,7 +90,6 @@ const initialPreferences: Preference[] = [
     description: "Studying at home vs. library preference",
     icon: BookOpen,
     value: 80,
-    color: "text-accent",
   },
   {
     id: "social",
@@ -105,7 +97,6 @@ const initialPreferences: Preference[] = [
     description: "How often do you enjoy socializing at home?",
     icon: Users,
     value: 55,
-    color: "text-primary",
   },
   {
     id: "parties",
@@ -113,7 +104,6 @@ const initialPreferences: Preference[] = [
     description: "Openness to hosting gatherings at home",
     icon: PartyPopper,
     value: 35,
-    color: "text-accent",
   },
 ]
 
@@ -138,14 +128,110 @@ function getLevelColor(value: number): string {
 }
 
 export function LifestylePreferences() {
+  const currentUser = useAppSelector((state) => state.auth.currentUser)
   const [preferences, setPreferences] = useState<Preference[]>(initialPreferences)
   const [boolPrefs, setBoolPrefs] = useState(booleanPrefs)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState("")
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (!currentUser?.id) {
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      setSaveError("")
+
+      try {
+        const response = await fetch(
+          `/api/users/preferences?userId=${encodeURIComponent(currentUser.id)}`,
+          { cache: "no-store" },
+        )
+        const result = (await response.json()) as {
+          error?: string
+          preference?: {
+            cleanliness: number
+            recycling: number
+            diy: number
+            cooking: number
+            quietness: number
+            music: number
+            fitness: number
+            studyHabits: number
+            socialActivity: number
+            parties: number
+            petFriendly: boolean
+            smokingAllowed: boolean
+          } | null
+        }
+
+        if (!response.ok) {
+          setSaveError(result.error || "Unable to load preferences.")
+          return
+        }
+
+        if (!result.preference) {
+          return
+        }
+
+        const pref = result.preference
+        setPreferences((prev) =>
+          prev.map((item) => {
+            const valueMap: Record<string, number> = {
+              cleanliness: pref.cleanliness,
+              recycling: pref.recycling,
+              diy: pref.diy,
+              cooking: pref.cooking,
+              quiet: pref.quietness,
+              music: pref.music,
+              fitness: pref.fitness,
+              study: pref.studyHabits,
+              social: pref.socialActivity,
+              parties: pref.parties,
+            }
+            return {
+              ...item,
+              value: valueMap[item.id] ?? item.value,
+            }
+          }),
+        )
+
+        setBoolPrefs((prev) =>
+          prev.map((item) => {
+            if (item.id === "pets") {
+              return { ...item, enabled: pref.petFriendly }
+            }
+            if (item.id === "smoking") {
+              return { ...item, enabled: pref.smokingAllowed }
+            }
+            return item
+          }),
+        )
+      } catch {
+        setSaveError("Unable to load preferences.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void loadPreferences()
+  }, [currentUser?.id])
+
+  const canSave = useMemo(
+    () => hasUnsavedChanges && !isSaving && !isLoading,
+    [hasUnsavedChanges, isSaving, isLoading],
+  )
 
   const updatePreference = (id: string, newValue: number) => {
     setPreferences((prev) =>
       prev.map((p) => (p.id === id ? { ...p, value: newValue } : p))
     )
+    setHasUnsavedChanges(true)
     setSaved(false)
   }
 
@@ -153,12 +239,61 @@ export function LifestylePreferences() {
     setBoolPrefs((prev) =>
       prev.map((p) => (p.id === id ? { ...p, enabled: !p.enabled } : p))
     )
+    setHasUnsavedChanges(true)
     setSaved(false)
   }
 
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const handleSave = async () => {
+    if (!currentUser?.id || !canSave) return
+
+    setSaveError("")
+    setIsSaving(true)
+
+    const sliderMap = Object.fromEntries(
+      preferences.map((pref) => [pref.id, pref.value]),
+    ) as Record<string, number>
+
+    const boolMap = Object.fromEntries(
+      boolPrefs.map((pref) => [pref.id, pref.enabled]),
+    ) as Record<string, boolean>
+
+    try {
+      const response = await fetch("/api/users/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          preferences: {
+            cleanliness: sliderMap.cleanliness,
+            recycling: sliderMap.recycling,
+            diy: sliderMap.diy,
+            cooking: sliderMap.cooking,
+            quietness: sliderMap.quiet,
+            music: sliderMap.music,
+            fitness: sliderMap.fitness,
+            studyHabits: sliderMap.study,
+            socialActivity: sliderMap.social,
+            parties: sliderMap.parties,
+            petFriendly: boolMap.pets,
+            smokingAllowed: boolMap.smoking,
+          },
+        }),
+      })
+
+      const result = (await response.json()) as { error?: string }
+      if (!response.ok) {
+        setSaveError(result.error || "Unable to save preferences.")
+        return
+      }
+
+      setSaved(true)
+      setHasUnsavedChanges(false)
+      setTimeout(() => setSaved(false), 2000)
+    } catch {
+      setSaveError("Unable to save preferences.")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -174,11 +309,28 @@ export function LifestylePreferences() {
         <Button
           className="rounded-xl gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
           onClick={handleSave}
+          disabled={!canSave}
         >
           <Save className="h-4 w-4" />
-          {saved ? "Saved!" : "Save Preferences"}
+          {isSaving ? "Saving..." : saved ? "Saved!" : "Save Preferences"}
         </Button>
       </div>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading your saved preferences...</p>
+      ) : null}
+
+      {hasUnsavedChanges ? (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-2 text-sm text-primary">
+          You have unsaved changes. Click Save Preferences to store them in the database.
+        </div>
+      ) : null}
+
+      {saveError ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+          {saveError}
+        </div>
+      ) : null}
 
       {/* Compatibility score preview */}
       <Card className="rounded-2xl border-border shadow-sm bg-primary/5">

@@ -1,467 +1,835 @@
-"use client"
+"use client";
 
-import React from "react"
+import React, { useEffect, useMemo, useState } from "react";
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  Check,
-  X,
-  Clock,
-  Eye,
-  EyeOff,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertCircle,
   CalendarClock,
-  MessageSquare,
-  Sparkles,
-  Leaf,
-  ChefHat,
-  Moon,
-  BookOpen,
-  GraduationCap,
-  ArrowRight,
-  UserCheck,
-  UserX,
+  Check,
+  Clock,
   Inbox,
-} from "lucide-react"
+  MessageSquare,
+  Send,
+  X,
+} from "lucide-react";
+import { useAppSelector } from "@/store/hooks";
 
-type AppStatus = "new" | "reviewed" | "shortlisted" | "accepted" | "rejected"
+type ApplicationStatus =
+  | "PENDING"
+  | "VIEWED"
+  | "INTERVIEW"
+  | "ACCEPTED"
+  | "REJECTED";
 
-interface Applicant {
-  id: number
-  initials: string
-  matchScore: number
-  blindPhase: boolean
-  status: AppStatus
-  appliedDate: string
-  lastActivity: string
-  study: string
-  semester: string
-  age: number
-  message: string
-  traits: { label: string; value: number; icon: React.ComponentType<{ className?: string }> }[]
-}
+type ResidentApplication = {
+  id: string;
+  status: ApplicationStatus;
+  matchScore: number;
+  appliedAt: string;
+  updatedAt: string;
+  message: string | null;
+  student: {
+    id: string;
+    email: string;
+    displayName: string | null;
+    studentProfile: {
+      fullName: string | null;
+      university: string | null;
+      degreeProgram: string | null;
+      semester: string | null;
+      age: number | null;
+      bio: string | null;
+      houseBio: string | null;
+      contact: string | null;
+      hobbies: string | null;
+      languages: string | null;
+      location: string | null;
+    } | null;
+  };
+  homeProfile: {
+    id: string;
+    title: string;
+    district: string;
+    rentPrice: number;
+    roomSizeM2: number | null;
+  };
+  interviews: Array<{
+    id: string;
+    scheduledAt: string;
+    type: string;
+    location: string | null;
+    notes: string | null;
+    status: string;
+  }>;
+  messages: Array<{
+    id: string;
+    text: string;
+    createdAt: string;
+    sender: {
+      displayName: string | null;
+      studentProfile: { fullName: string | null } | null;
+      residentProfile: { fullName: string | null } | null;
+    };
+  }>;
+};
 
-const applicants: Applicant[] = [
-  {
-    id: 1,
-    initials: "AS",
-    matchScore: 92,
-    blindPhase: false,
-    status: "new",
-    appliedDate: "Feb 6, 2026",
-    lastActivity: "2 hours ago",
-    study: "M.Sc. Computer Science",
-    semester: "3rd semester",
-    age: 25,
-    message: "Hi! I'm a tidy, quiet student who loves cooking for flatmates. I work from home sometimes and value a calm environment. Looking forward to meeting you!",
-    traits: [
-      { label: "Cleanliness", value: 85, icon: Sparkles },
-      { label: "Recycling", value: 90, icon: Leaf },
-      { label: "Cooking", value: 75, icon: ChefHat },
-      { label: "Quietness", value: 70, icon: Moon },
-      { label: "Study Habits", value: 80, icon: BookOpen },
-    ],
-  },
-  {
-    id: 2,
-    initials: "JL",
-    matchScore: 87,
-    blindPhase: true,
-    status: "new",
-    appliedDate: "Feb 5, 2026",
-    lastActivity: "5 hours ago",
-    study: "B.A. International Relations",
-    semester: "5th semester",
-    age: 22,
-    message: "Looking for a friendly WG where I can focus on studies but also enjoy occasional dinners together. I'm very organized and respect shared spaces.",
-    traits: [
-      { label: "Cleanliness", value: 80, icon: Sparkles },
-      { label: "Recycling", value: 70, icon: Leaf },
-      { label: "Cooking", value: 60, icon: ChefHat },
-      { label: "Quietness", value: 85, icon: Moon },
-      { label: "Study Habits", value: 90, icon: BookOpen },
-    ],
-  },
-  {
-    id: 3,
-    initials: "PR",
-    matchScore: 84,
-    blindPhase: true,
-    status: "reviewed",
-    appliedDate: "Feb 3, 2026",
-    lastActivity: "1 day ago",
-    study: "M.A. Urban Planning",
-    semester: "1st semester",
-    age: 24,
-    message: "Just moved to Berlin and looking for a welcoming WG. I'm into sustainability, cycling, and making the apartment feel like home. Happy to contribute to shared cooking!",
-    traits: [
-      { label: "Cleanliness", value: 75, icon: Sparkles },
-      { label: "Recycling", value: 95, icon: Leaf },
-      { label: "Cooking", value: 80, icon: ChefHat },
-      { label: "Quietness", value: 60, icon: Moon },
-      { label: "Study Habits", value: 70, icon: BookOpen },
-    ],
-  },
-  {
-    id: 4,
-    initials: "TN",
-    matchScore: 81,
-    blindPhase: false,
-    status: "shortlisted",
-    appliedDate: "Feb 1, 2026",
-    lastActivity: "2 days ago",
-    study: "B.Sc. Physics",
-    semester: "4th semester",
-    age: 21,
-    message: "Easy-going student who keeps things clean and enjoys a good movie night. I'm a morning person and usually study at the library during the day.",
-    traits: [
-      { label: "Cleanliness", value: 70, icon: Sparkles },
-      { label: "Recycling", value: 65, icon: Leaf },
-      { label: "Cooking", value: 55, icon: ChefHat },
-      { label: "Quietness", value: 75, icon: Moon },
-      { label: "Study Habits", value: 85, icon: BookOpen },
-    ],
-  },
-  {
-    id: 5,
-    initials: "KW",
-    matchScore: 79,
-    blindPhase: false,
-    status: "accepted",
-    appliedDate: "Jan 28, 2026",
-    lastActivity: "3 days ago",
-    study: "M.Sc. Environmental Science",
-    semester: "2nd semester",
-    age: 23,
-    message: "Passionate about sustainability and community living. I love cooking plant-based meals and organizing small gatherings. Very respectful of quiet hours.",
-    traits: [
-      { label: "Cleanliness", value: 80, icon: Sparkles },
-      { label: "Recycling", value: 98, icon: Leaf },
-      { label: "Cooking", value: 85, icon: ChefHat },
-      { label: "Quietness", value: 65, icon: Moon },
-      { label: "Study Habits", value: 75, icon: BookOpen },
-    ],
-  },
-]
+const statusClass: Record<ApplicationStatus, string> = {
+  PENDING: "bg-muted text-muted-foreground",
+  VIEWED: "bg-primary/15 text-primary",
+  INTERVIEW: "bg-accent/15 text-accent",
+  ACCEPTED: "bg-accent/15 text-accent",
+  REJECTED: "bg-destructive/10 text-destructive",
+};
 
-const statusConfig: Record<AppStatus, { label: string; color: string }> = {
-  new: { label: "New", color: "bg-primary/15 text-primary" },
-  reviewed: { label: "Reviewed", color: "bg-muted text-muted-foreground" },
-  shortlisted: { label: "Shortlisted", color: "bg-accent/15 text-accent" },
-  accepted: { label: "Accepted", color: "bg-accent/15 text-accent" },
-  rejected: { label: "Rejected", color: "bg-destructive/10 text-destructive" },
-}
+const statusLabel: Record<ApplicationStatus, string> = {
+  PENDING: "Pending",
+  VIEWED: "Viewed",
+  INTERVIEW: "Interview",
+  ACCEPTED: "Accepted",
+  REJECTED: "Rejected",
+};
 
-export function LandlordApplications({ onNavigateInterviews }: { onNavigateInterviews: () => void }) {
-  const [apps, setApps] = useState(applicants)
-  const [activeTab, setActiveTab] = useState("all")
-  const [expandedId, setExpandedId] = useState<number | null>(null)
+export function LandlordApplications({
+  onNavigateMessages,
+}: {
+  onNavigateMessages?: () => void;
+}) {
+  const currentUser = useAppSelector((state) => state.auth.currentUser);
+  const [activeTab, setActiveTab] = useState("all");
+  const [applications, setApplications] = useState<ResidentApplication[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [schedulingApplication, setSchedulingApplication] =
+    useState<ResidentApplication | null>(null);
+  const [acceptingApplication, setAcceptingApplication] =
+    useState<ResidentApplication | null>(null);
+  const [profileApplication, setProfileApplication] =
+    useState<ResidentApplication | null>(null);
+  const [scheduleForm, setScheduleForm] = useState({
+    date: "",
+    time: "",
+    notes: "",
+    location: "",
+    interviewType: "in-person",
+  });
 
-  const filteredApps =
-    activeTab === "all"
-      ? apps
-      : apps.filter((a) => a.status === activeTab)
+  const loadApplications = async () => {
+    if (!currentUser?.id) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/applications?userId=${encodeURIComponent(currentUser.id)}&role=resident`,
+        { cache: "no-store" },
+      );
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to load applications");
+      }
+
+      setApplications(result.applications || []);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load applications",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadApplications();
+  }, [currentUser?.id]);
+
+  const scheduleInterview = async () => {
+    if (!currentUser?.id || !schedulingApplication) return;
+
+    const scheduledAt =
+      scheduleForm.date && scheduleForm.time
+        ? new Date(`${scheduleForm.date}T${scheduleForm.time}`)
+        : null;
+    if (!scheduledAt || Number.isNaN(scheduledAt.getTime())) {
+      setError("Please select a valid interview date and time.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/applications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          applicationId: schedulingApplication.id,
+          status: "INTERVIEW",
+          scheduledAt: scheduledAt.toISOString(),
+          notes: scheduleForm.notes,
+          location: scheduleForm.location,
+          interviewType: scheduleForm.interviewType,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to schedule interview");
+      }
+
+      setSchedulingApplication(null);
+      await loadApplications();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to schedule interview",
+      );
+    }
+  };
+
+  const acceptApplicant = async () => {
+    if (!currentUser?.id || !acceptingApplication) return;
+
+    try {
+      const response = await fetch("/api/applications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          applicationId: acceptingApplication.id,
+          status: "ACCEPTED",
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to accept applicant");
+      }
+
+      setAcceptingApplication(null);
+      await loadApplications();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to accept applicant",
+      );
+    }
+  };
+
+  const rejectApplicant = async (applicationId: string) => {
+    if (!currentUser?.id) return;
+
+    try {
+      const response = await fetch("/api/applications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          applicationId,
+          status: "REJECTED",
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to reject applicant");
+      }
+
+      await loadApplications();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to reject applicant",
+      );
+    }
+  };
+
+  const filtered = useMemo(() => {
+    if (activeTab === "all") return applications;
+    return applications.filter(
+      (application) => application.status === activeTab,
+    );
+  }, [activeTab, applications]);
 
   const counts = {
-    all: apps.length,
-    new: apps.filter((a) => a.status === "new").length,
-    reviewed: apps.filter((a) => a.status === "reviewed").length,
-    shortlisted: apps.filter((a) => a.status === "shortlisted").length,
-    accepted: apps.filter((a) => a.status === "accepted").length,
-    rejected: apps.filter((a) => a.status === "rejected").length,
-  }
+    all: applications.length,
+    PENDING: applications.filter(
+      (application) => application.status === "PENDING",
+    ).length,
+    INTERVIEW: applications.filter(
+      (application) => application.status === "INTERVIEW",
+    ).length,
+    ACCEPTED: applications.filter(
+      (application) => application.status === "ACCEPTED",
+    ).length,
+    REJECTED: applications.filter(
+      (application) => application.status === "REJECTED",
+    ).length,
+  };
 
-  const handleAccept = (id: number) => {
-    setApps((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "accepted" as AppStatus } : a))
-    )
-  }
-
-  const handleReject = (id: number) => {
-    setApps((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "rejected" as AppStatus } : a))
-    )
-  }
-
-  const handleShortlist = (id: number) => {
-    setApps((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "shortlisted" as AppStatus } : a))
-    )
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        Loading applications...
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-        <MiniStat label="New" value={counts.new} highlight />
-        <MiniStat label="Reviewed" value={counts.reviewed} />
-        <MiniStat label="Shortlisted" value={counts.shortlisted} />
-        <MiniStat label="Accepted" value={counts.accepted} accent />
-        <MiniStat label="Rejected" value={counts.rejected} />
-      </div>
+      {error ? (
+        <Card className="rounded-2xl border-destructive/30 bg-destructive/5">
+          <CardContent className="flex gap-3 py-4 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="h-auto w-full justify-start gap-1 rounded-xl bg-muted p-1 flex-wrap">
-          {(["all", "new", "shortlisted", "accepted", "rejected"] as const).map((tab) => (
-            <TabsTrigger
-              key={tab}
-              value={tab}
-              className="rounded-lg text-xs gap-1.5 capitalize data-[state=active]:bg-card"
+          <TabsTrigger
+            value="all"
+            className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card"
+          >
+            All
+            <Badge
+              variant="secondary"
+              className="h-5 min-w-5 rounded-full text-[10px] px-1.5"
             >
-              {tab}
-              <Badge variant="secondary" className="h-5 min-w-5 rounded-full text-[10px] px-1.5">
-                {counts[tab]}
-              </Badge>
-            </TabsTrigger>
-          ))}
+              {counts.all}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger
+            value="PENDING"
+            className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card"
+          >
+            Pending
+            <Badge
+              variant="secondary"
+              className="h-5 min-w-5 rounded-full text-[10px] px-1.5"
+            >
+              {counts.PENDING}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger
+            value="INTERVIEW"
+            className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card"
+          >
+            Interview
+            <Badge
+              variant="secondary"
+              className="h-5 min-w-5 rounded-full text-[10px] px-1.5"
+            >
+              {counts.INTERVIEW}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger
+            value="ACCEPTED"
+            className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card"
+          >
+            Accepted
+            <Badge
+              variant="secondary"
+              className="h-5 min-w-5 rounded-full text-[10px] px-1.5"
+            >
+              {counts.ACCEPTED}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger
+            value="REJECTED"
+            className="rounded-lg text-xs gap-1.5 data-[state=active]:bg-card"
+          >
+            Rejected
+            <Badge
+              variant="secondary"
+              className="h-5 min-w-5 rounded-full text-[10px] px-1.5"
+            >
+              {counts.REJECTED}
+            </Badge>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-4">
-          <div className="flex flex-col gap-4">
-            {filteredApps.length === 0 ? (
-              <Card className="rounded-2xl border-border shadow-sm">
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <Inbox className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm font-medium text-muted-foreground">No applications here</p>
+          <div className="space-y-4">
+            {filtered.length === 0 ? (
+              <Card className="rounded-2xl">
+                <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                  <Inbox className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+                  No applications in this view.
                 </CardContent>
               </Card>
             ) : (
-              filteredApps.map((app) => (
-                <ApplicantCard
-                  key={app.id}
-                  applicant={app}
-                  isExpanded={expandedId === app.id}
-                  onToggle={() => setExpandedId(expandedId === app.id ? null : app.id)}
-                  onAccept={() => handleAccept(app.id)}
-                  onReject={() => handleReject(app.id)}
-                  onShortlist={() => handleShortlist(app.id)}
-                  onScheduleInterview={onNavigateInterviews}
-                />
-              ))
+              filtered.map((application) => {
+                const studentName =
+                  application.student.displayName ||
+                  application.student.studentProfile?.fullName ||
+                  application.student.email;
+                const initials =
+                  studentName
+                    .split(" ")
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((part) => part[0]?.toUpperCase())
+                    .join("") || "ST";
+                const interview = application.interviews[0];
+                const interviewDateTime = interview?.scheduledAt
+                  ? new Date(interview.scheduledAt)
+                  : null;
+
+                return (
+                  <Card
+                    key={application.id}
+                    className="rounded-2xl border-border shadow-sm"
+                  >
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex gap-3">
+                          <Avatar className="h-10 w-10 border-2 border-card">
+                            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold text-foreground">
+                                {studentName}
+                              </p>
+                              <Badge
+                                className={`rounded-full border-0 text-[10px] ${statusClass[application.status]}`}
+                              >
+                                {statusLabel[application.status]}
+                              </Badge>
+                              <Badge
+                                variant="secondary"
+                                className="rounded-full text-[10px]"
+                              >
+                                {application.matchScore}% match
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {application.homeProfile.title} -{" "}
+                              {application.homeProfile.district}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {application.student.studentProfile
+                                ?.degreeProgram || "Student"}
+                              {application.student.studentProfile?.semester
+                                ? `, ${application.student.studentProfile.semester}`
+                                : ""}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          {application.status !== "ACCEPTED" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl gap-1"
+                              onClick={() => {
+                                setSchedulingApplication(application);
+                                const nextDate =
+                                  interviewDateTime ?? new Date();
+                                setScheduleForm({
+                                  date: nextDate.toISOString().slice(0, 10),
+                                  time: nextDate.toISOString().slice(11, 16),
+                                  notes: interview?.notes || "",
+                                  location: interview?.location || "",
+                                  interviewType: interview?.type || "in-person",
+                                });
+                              }}
+                            >
+                              <CalendarClock className="h-3.5 w-3.5" />
+                              {interview
+                                ? "Reschedule Interview"
+                                : "Schedule Interview"}
+                            </Button>
+                          ) : null}
+                          {application.status !== "ACCEPTED" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl gap-1"
+                              onClick={() =>
+                                setAcceptingApplication(application)
+                              }
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              Accept
+                            </Button>
+                          ) : null}
+                          {application.status !== "REJECTED" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl gap-1"
+                              onClick={() =>
+                                void rejectApplicant(application.id)
+                              }
+                            >
+                              <X className="h-3.5 w-3.5" />
+                              Reject
+                            </Button>
+                          ) : null}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-xl gap-1"
+                            onClick={() => onNavigateMessages?.()}
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Chat
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-xl gap-1"
+                            onClick={() => setProfileApplication(application)}
+                          >
+                            View Profile
+                          </Button>
+                        </div>
+                      </div>
+
+                      {application.messages[0] ? (
+                        <div className="mt-4 rounded-xl bg-muted/60 p-3">
+                          <p className="text-xs text-muted-foreground mb-1">
+                            Latest message
+                          </p>
+                          <p className="text-sm text-foreground">
+                            {application.messages[0].text}
+                          </p>
+                        </div>
+                      ) : null}
+
+                      {interview && interviewDateTime ? (
+                        <div className="mt-4 rounded-xl border border-accent/20 bg-accent/5 p-3">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                            <Clock className="h-4 w-4 text-accent" />
+                            Interview scheduled for{" "}
+                            {interviewDateTime.toLocaleString()}
+                          </div>
+                          {interview.location ? (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Location: {interview.location}
+                            </p>
+                          ) : null}
+                          {interview.notes ? (
+                            <p className="mt-2 text-sm text-foreground">
+                              {interview.notes}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : application.status === "INTERVIEW" ? (
+                        <div className="mt-4 rounded-xl border border-accent/20 bg-accent/5 p-3 text-sm text-foreground">
+                          Interview requested. Schedule it from the Interview
+                          button.
+                        </div>
+                      ) : null}
+
+                      <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>
+                          Applied{" "}
+                          {new Date(application.appliedAt).toLocaleDateString()}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="rounded-xl gap-1"
+                          onClick={() => onNavigateMessages?.()}
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          Open chat
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
             )}
           </div>
         </TabsContent>
       </Tabs>
-    </div>
-  )
-}
 
-function ApplicantCard({
-  applicant,
-  isExpanded,
-  onToggle,
-  onAccept,
-  onReject,
-  onShortlist,
-  onScheduleInterview,
-}: {
-  applicant: Applicant
-  isExpanded: boolean
-  onToggle: () => void
-  onAccept: () => void
-  onReject: () => void
-  onShortlist: () => void
-  onScheduleInterview: () => void
-}) {
-  const config = statusConfig[applicant.status]
-  const isActionable = applicant.status === "new" || applicant.status === "reviewed" || applicant.status === "shortlisted"
+      <Dialog
+        open={Boolean(schedulingApplication)}
+        onOpenChange={(open) => !open && setSchedulingApplication(null)}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Schedule Interview</DialogTitle>
+            <DialogDescription>
+              Pick a date, time, and notes for the applicant. This will update
+              the application status to interview.
+            </DialogDescription>
+          </DialogHeader>
 
-  return (
-    <Card className="rounded-2xl border-border shadow-sm transition-all hover:shadow-md">
-      <CardContent className="p-0">
-        {/* Compact header - always visible */}
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex w-full items-center gap-4 p-5 text-left"
-        >
-          <Avatar className="h-11 w-11 border-2 border-card shrink-0">
-            <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold">
-              {applicant.blindPhase ? "?" : applicant.initials}
-            </AvatarFallback>
-          </Avatar>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-bold text-foreground">
-                {applicant.blindPhase ? `Candidate #${applicant.id}` : `Candidate #${applicant.initials}`}
-              </span>
-              <Badge className={`rounded-full border-0 text-[10px] font-semibold ${config.color}`}>
-                {config.label}
-              </Badge>
-              {applicant.blindPhase && (
-                <Badge variant="secondary" className="gap-1 rounded-full text-[10px] font-semibold bg-primary/8 text-primary border-0">
-                  <EyeOff className="h-3 w-3" />
-                  Blind
-                </Badge>
-              )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Interview Date</Label>
+              <Input
+                type="date"
+                value={scheduleForm.date}
+                onChange={(event) =>
+                  setScheduleForm((prev) => ({
+                    ...prev,
+                    date: event.target.value,
+                  }))
+                }
+                className="rounded-xl"
+              />
             </div>
-            <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground font-body">
-              <span className="flex items-center gap-1">
-                <GraduationCap className="h-3 w-3" />
-                {applicant.study}
-              </span>
-              <span className="h-1 w-1 rounded-full bg-border" />
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {applicant.lastActivity}
-              </span>
+            <div className="space-y-2">
+              <Label>Interview Time</Label>
+              <Input
+                type="time"
+                value={scheduleForm.time}
+                onChange={(event) =>
+                  setScheduleForm((prev) => ({
+                    ...prev,
+                    time: event.target.value,
+                  }))
+                }
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Interview Type</Label>
+              <select
+                value={scheduleForm.interviewType}
+                onChange={(event) =>
+                  setScheduleForm((prev) => ({
+                    ...prev,
+                    interviewType: event.target.value,
+                  }))
+                }
+                className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+              >
+                <option value="in-person">In-Person</option>
+                <option value="video">Video Call</option>
+                <option value="phone">Phone Call</option>
+              </select>
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Location or Link</Label>
+              <Input
+                value={scheduleForm.location}
+                onChange={(event) =>
+                  setScheduleForm((prev) => ({
+                    ...prev,
+                    location: event.target.value,
+                  }))
+                }
+                className="rounded-xl"
+                placeholder="Room, address, or call link"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Notes</Label>
+              <textarea
+                value={scheduleForm.notes}
+                onChange={(event) =>
+                  setScheduleForm((prev) => ({
+                    ...prev,
+                    notes: event.target.value,
+                  }))
+                }
+                rows={4}
+                className="w-full rounded-xl border border-input bg-background p-3 text-sm"
+                placeholder="Bring ID, enrollment proof, or any other documents..."
+              />
             </div>
           </div>
 
-          {/* Match score */}
-          <div className="shrink-0 text-right">
-            <span className="text-xl font-bold text-primary">{applicant.matchScore}%</span>
-            <p className="text-[10px] text-muted-foreground">Match</p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="rounded-xl bg-transparent"
+              onClick={() => setSchedulingApplication(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl gap-2"
+              onClick={() => void scheduleInterview()}
+            >
+              <Send className="h-4 w-4" />
+              Save Interview
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(acceptingApplication)}
+        onOpenChange={(open) => !open && setAcceptingApplication(null)}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Accept Applicant</DialogTitle>
+            <DialogDescription>
+              Please confirm the following actions before accepting this
+              applicant:
+            </DialogDescription>
+          </DialogHeader>
+
+          <ul className="list-disc pl-5 space-y-1 text-sm text-foreground">
+            <li>The applicant will be added to this WG as a member.</li>
+            <li>
+              All other pending or interview applications for this listing will
+              become rejected.
+            </li>
+            <li>
+              All application chats and history will remain available for
+              review.
+            </li>
+          </ul>
+
+          <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 text-sm text-foreground">
+            <p className="font-semibold">
+              {acceptingApplication?.student.displayName ||
+                acceptingApplication?.student.studentProfile?.fullName ||
+                acceptingApplication?.student.email}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {acceptingApplication?.homeProfile.title}
+            </p>
           </div>
 
-          <ArrowRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
-        </button>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="rounded-xl bg-transparent"
+              onClick={() => setAcceptingApplication(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl gap-2"
+              onClick={() => void acceptApplicant()}
+            >
+              <Check className="h-4 w-4" />
+              Accept Applicant
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {/* Expanded details */}
-        {isExpanded && (
-          <div className="border-t border-border px-5 pb-5 pt-4">
-            <div className="grid gap-5 lg:grid-cols-2">
-              {/* Left: Message and info */}
-              <div className="flex flex-col gap-4">
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">APPLICATION MESSAGE</p>
-                  <div className="rounded-xl bg-muted/60 p-3">
-                    <p className="text-sm text-foreground font-body leading-relaxed">{applicant.message}</p>
-                  </div>
-                </div>
+      <Dialog
+        open={Boolean(profileApplication)}
+        onOpenChange={(open) => !open && setProfileApplication(null)}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Applicant Profile</DialogTitle>
+            <DialogDescription>
+              Review profile details before scheduling or accepting.
+            </DialogDescription>
+          </DialogHeader>
 
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground font-body">
-                  <span className="flex items-center gap-1">
-                    <GraduationCap className="h-3 w-3" />
-                    {applicant.semester}
-                  </span>
-                  <span className="h-1 w-1 rounded-full bg-border" />
-                  <span>{applicant.age} years old</span>
-                  <span className="h-1 w-1 rounded-full bg-border" />
-                  <span>Applied {applicant.appliedDate}</span>
-                </div>
-              </div>
-
-              {/* Right: Compatibility traits */}
+          <div className="space-y-3 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">Full Name</p>
+              <p className="font-semibold text-foreground">
+                {profileApplication?.student.displayName ||
+                  profileApplication?.student.studentProfile?.fullName ||
+                  profileApplication?.student.email}
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-3">COMPATIBILITY TRAITS</p>
-                <div className="flex flex-col gap-2.5">
-                  {applicant.traits.map((trait) => {
-                    const Icon = trait.icon
-                    return (
-                      <div key={trait.label} className="flex items-center gap-3">
-                        <Icon className="h-4 w-4 text-primary shrink-0" />
-                        <span className="text-xs font-medium text-foreground w-20 shrink-0">{trait.label}</span>
-                        <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-primary transition-all duration-500"
-                            style={{ width: `${trait.value}%` }}
-                          />
-                        </div>
-                        <span className="text-xs font-bold text-foreground w-8 text-right">{trait.value}%</span>
-                      </div>
-                    )
-                  })}
-                </div>
+                <p className="text-xs text-muted-foreground">University</p>
+                <p className="text-foreground">
+                  {profileApplication?.student.studentProfile?.university ||
+                    "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Program</p>
+                <p className="text-foreground">
+                  {profileApplication?.student.studentProfile?.degreeProgram ||
+                    "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Semester</p>
+                <p className="text-foreground">
+                  {profileApplication?.student.studentProfile?.semester || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Location</p>
+                <p className="text-foreground">
+                  {profileApplication?.student.studentProfile?.location || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Age</p>
+                <p className="text-foreground">
+                  {profileApplication?.student.studentProfile?.age ?? "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Languages</p>
+                <p className="text-foreground">
+                  {profileApplication?.student.studentProfile?.languages || "-"}
+                </p>
               </div>
             </div>
-
-            {/* Action buttons */}
-            {isActionable && (
-              <>
-                <Separator className="my-4" />
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    size="sm"
-                    className="rounded-xl gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
-                    onClick={onAccept}
-                  >
-                    <UserCheck className="h-4 w-4" />
-                    Accept
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-xl gap-2 bg-transparent"
-                    onClick={onShortlist}
-                  >
-                    <Eye className="h-4 w-4" />
-                    Shortlist
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-xl gap-2 bg-transparent"
-                    onClick={onScheduleInterview}
-                  >
-                    <CalendarClock className="h-4 w-4" />
-                    Schedule Interview
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-xl gap-2 text-destructive hover:bg-destructive/10 bg-transparent"
-                    onClick={onReject}
-                  >
-                    <UserX className="h-4 w-4" />
-                    Reject
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {/* Status for already decided */}
-            {applicant.status === "accepted" && (
-              <>
-                <Separator className="my-4" />
-                <div className="flex items-center gap-2 text-sm font-medium text-accent">
-                  <UserCheck className="h-4 w-4" />
-                  This applicant has been accepted. Contact details shared.
-                </div>
-              </>
-            )}
-            {applicant.status === "rejected" && (
-              <>
-                <Separator className="my-4" />
-                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                  <UserX className="h-4 w-4" />
-                  This applicant has been declined.
-                </div>
-              </>
-            )}
+            <div>
+              <p className="text-xs text-muted-foreground">Contact</p>
+              <p className="text-foreground">
+                {profileApplication?.student.studentProfile?.contact ||
+                  profileApplication?.student.email ||
+                  "-"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Bio</p>
+              <p className="text-foreground whitespace-pre-wrap">
+                {profileApplication?.student.studentProfile?.bio || "-"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">WG-specific Bio</p>
+              <p className="text-foreground whitespace-pre-wrap">
+                {profileApplication?.student.studentProfile?.houseBio || "-"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Hobbies</p>
+              <p className="text-foreground">
+                {profileApplication?.student.studentProfile?.hobbies || "-"}
+              </p>
+            </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
 
-function MiniStat({
-  label,
-  value,
-  accent,
-  highlight,
-}: {
-  label: string
-  value: number
-  accent?: boolean
-  highlight?: boolean
-}) {
-  return (
-    <Card className={`rounded-2xl border-border shadow-sm ${highlight && value > 0 ? "border-primary/30" : ""}`}>
-      <CardContent className="p-4">
-        <p className="text-xs text-muted-foreground font-medium">{label}</p>
-        <p className={`text-2xl font-bold leading-tight ${accent ? "text-accent" : highlight ? "text-primary" : "text-foreground"}`}>
-          {value}
-        </p>
-      </CardContent>
-    </Card>
-  )
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="rounded-xl bg-transparent"
+              onClick={() => setProfileApplication(null)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }

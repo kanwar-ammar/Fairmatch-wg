@@ -2,13 +2,13 @@
 
 import React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Home,
   ClipboardList,
   Users,
   Inbox,
-  CalendarClock,
+  MessageSquare,
   LogOut,
   Menu,
   X,
@@ -23,10 +23,10 @@ import { useAppSelector } from "@/store/hooks";
 
 const landlordNavItems = [
   { label: "Overview", icon: Home, id: "ll-overview" },
-  { label: "My WG Listing", icon: ClipboardList, id: "ll-listing" },
+  { label: "My WG Listings", icon: ClipboardList, id: "ll-listing" },
   { label: "Housemates & Rules", icon: Users, id: "ll-housemates" },
   { label: "Applications", icon: Inbox, id: "ll-applications" },
-  { label: "Interviews", icon: CalendarClock, id: "ll-interviews" },
+  { label: "Messages", icon: MessageSquare, id: "ll-messages" },
 ];
 
 interface LandlordLayoutProps {
@@ -45,7 +45,50 @@ export function LandlordLayout({
   onSignOut,
 }: LandlordLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [applicationCount, setApplicationCount] = useState(0);
+  const [messageCount, setMessageCount] = useState(0);
   const currentUser = useAppSelector((state) => state.auth.currentUser);
+
+  // Fetch application and message counts
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const fetchCounts = async () => {
+      try {
+        const [appRes, msgRes] = await Promise.all([
+          fetch(
+            `/api/applications/count?userId=${encodeURIComponent(currentUser.id)}&role=resident`,
+            { cache: "no-store" },
+          ),
+          fetch(
+            `/api/messages/unread-count?userId=${encodeURIComponent(currentUser.id)}&role=resident`,
+            { cache: "no-store" },
+          ),
+        ]);
+
+        if (appRes.ok) {
+          const data = (await appRes.json()) as { count: number };
+          setApplicationCount(data.count);
+        }
+
+        if (msgRes.ok) {
+          const data = (await msgRes.json()) as { count: number };
+          setMessageCount(data.count);
+        }
+      } catch (error) {
+        console.error("Failed to fetch counts:", error);
+      }
+    };
+
+    void fetchCounts();
+
+    // Refresh every 10 seconds
+    const interval = setInterval(() => {
+      void fetchCounts();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [currentUser?.id]);
 
   const displayName = currentUser?.fullName?.trim() || "Resident account";
   const avatarUrl = currentUser?.avatarUrl ?? "/placeholder-avatar.jpg";
@@ -156,9 +199,14 @@ export function LandlordLayout({
                 >
                   <item.icon className="h-[18px] w-[18px]" />
                   {item.label}
-                  {item.id === "ll-applications" && inboxCount > 0 && (
+                  {item.id === "ll-applications" && applicationCount > 0 && (
                     <Badge className="ml-auto h-5 min-w-5 rounded-full bg-primary-foreground/20 text-[10px] font-bold text-inherit border-0 px-1.5">
-                      {inboxCount}
+                      {applicationCount}
+                    </Badge>
+                  )}
+                  {item.id === "ll-messages" && messageCount > 0 && (
+                    <Badge className="ml-auto h-5 min-w-5 rounded-full bg-primary-foreground/20 text-[10px] font-bold text-inherit border-0 px-1.5">
+                      {messageCount}
                     </Badge>
                   )}
                 </button>
