@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, LogIn, UserPlus } from "lucide-react";
 
 import { getStoredAuthUser, setStoredAuthUser } from "@/lib/session";
+import { GERMAN_REGIONS } from "@/lib/german-regions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +34,7 @@ export default function AuthPage() {
 
   const [signupForm, setSignupForm] = useState({
     fullName: "",
+    location: "",
     email: "",
     password: "",
   });
@@ -92,7 +94,7 @@ export default function AuthPage() {
       setSuccess("Account created. Log in to continue.");
       setTab("login");
       setLoginForm((prev) => ({ ...prev, email: signupForm.email }));
-      setSignupForm({ fullName: "", email: "", password: "" });
+      setSignupForm({ fullName: "", location: "", email: "", password: "" });
     } catch {
       setError("Signup failed. Please try again.");
     } finally {
@@ -118,7 +120,8 @@ export default function AuthPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
             <p className="rounded-xl bg-muted/50 p-3">
-              Signup is now intentionally simple: name, email, and password.
+              Signup is now intentionally simple: name, location, email, and
+              password.
             </p>
             <p className="rounded-xl bg-muted/50 p-3">
               Profile details, house joining, and resident setup happen after
@@ -206,6 +209,26 @@ export default function AuthPage() {
                     }
                     className="rounded-xl"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Location</Label>
+                  <Input
+                    placeholder="Berlin"
+                    value={signupForm.location}
+                    onChange={(e) =>
+                      setSignupForm((prev) => ({
+                        ...prev,
+                        location: e.target.value,
+                      }))
+                    }
+                    list="auth-region-options"
+                    className="rounded-xl"
+                  />
+                  <datalist id="auth-region-options">
+                    {GERMAN_REGIONS.map((region) => (
+                      <option key={region} value={region} />
+                    ))}
+                  </datalist>
                 </div>
                 <div className="space-y-2">
                   <Label>Email</Label>

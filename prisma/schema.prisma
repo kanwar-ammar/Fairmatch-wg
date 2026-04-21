@@ -89,6 +89,8 @@ model StudentProfile {
   user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   fullName           String
   age                Int?
+  gender             String?
+  nationality        String?
   bio                String?
   houseBio           String?
   university         String?

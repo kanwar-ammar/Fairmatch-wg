@@ -152,6 +152,7 @@ export async function GET(request: Request) {
 
       return {
         id: item.id,
+        name,
         initials,
         score: item.matchScore,
         status: normalizedStatus,

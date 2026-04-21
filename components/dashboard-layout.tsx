@@ -52,6 +52,7 @@ interface DashboardLayoutProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   onSwitchRole?: () => void;
+  onRegisterWg?: () => void;
   onSignOut?: () => void;
 }
 
@@ -60,6 +61,7 @@ export function DashboardLayout({
   activeTab,
   onTabChange,
   onSwitchRole,
+  onRegisterWg,
   onSignOut,
 }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -247,27 +249,44 @@ export function DashboardLayout({
         <div className="border-t border-sidebar-border p-3 flex flex-col gap-1">
           {onSwitchRole && (
             <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="block w-full">
-                    <button
-                      type="button"
-                      onClick={onSwitchRole}
-                      disabled={!canUseResident}
-                      className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent text-primary hover:bg-sidebar-accent"
-                    >
-                      <ArrowLeftRight className="h-[18px] w-[18px]" />
-                      Switch to Resident
-                    </button>
-                  </span>
-                </TooltipTrigger>
-                {!canUseResident ? (
-                  <TooltipContent side="right" className="max-w-xs">
-                    You can switch to your resident profile after you are added
-                    to a WG.
-                  </TooltipContent>
+              <div className="flex flex-col gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="block w-full">
+                      <button
+                        type="button"
+                        onClick={onSwitchRole}
+                        disabled={!canUseResident}
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent text-primary hover:bg-sidebar-accent"
+                      >
+                        <ArrowLeftRight className="h-[18px] w-[18px]" />
+                        Switch to Resident
+                      </button>
+                    </span>
+                  </TooltipTrigger>
+                  {canUseResident ? (
+                    <TooltipContent side="right" className="max-w-xs">
+                      Switch to Resident to manage your WG, applications, and listings.
+                    </TooltipContent>
+                  ) : (
+                    <TooltipContent side="right" className="max-w-xs">
+                      You can switch to Resident only after creating your own WG or
+                      being added to one.
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+
+                {onRegisterWg && !canUseResident ? (
+                  <button
+                    type="button"
+                    onClick={onRegisterWg}
+                    className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-primary hover:bg-sidebar-accent transition-colors"
+                  >
+                    <Home className="h-[18px] w-[18px]" />
+                    Register your own WG
+                  </button>
                 ) : null}
-              </Tooltip>
+              </div>
             </TooltipProvider>
           )}
           <button

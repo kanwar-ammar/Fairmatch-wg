@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Resident mode requires being part of a WG. Join or create a house first.",
+            "Resident mode requires being part of a WG. Create your WG or get added to one first.",
         },
         { status: 403 },
       );

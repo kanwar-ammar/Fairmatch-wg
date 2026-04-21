@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { normalizeGermanRegion } from "@/lib/german-regions";
 
 function getTodayIsoDate() {
   const now = new Date();
@@ -129,6 +130,8 @@ export async function PUT(request: Request) {
       bio?: string;
       houseBio?: string;
       age?: number | null;
+      gender?: string | null;
+      nationality?: string | null;
       university?: string | null;
       location?: string | null;
       budgetMin?: number | null;
@@ -163,6 +166,17 @@ export async function PUT(request: Request) {
       existingUser.displayName ??
       existingUser.email;
 
+    const normalizedLocation = normalizeGermanRegion(
+      String(body.location ?? ""),
+    );
+
+    if (!normalizedLocation) {
+      return NextResponse.json(
+        { error: "Location is required and must match the regional list." },
+        { status: 400 },
+      );
+    }
+
     if (body.moveInDate && body.moveInDate < getTodayIsoDate()) {
       return NextResponse.json(
         { error: "Move-in date cannot be earlier than today." },
@@ -176,8 +190,10 @@ export async function PUT(request: Request) {
         bio: body.bio ?? null,
         houseBio: body.houseBio ?? null,
         age: body.age ?? null,
+        gender: body.gender ?? null,
+        nationality: body.nationality ?? null,
         university: body.university ?? null,
-        location: body.location ?? null,
+        location: normalizedLocation,
         budgetMin: body.budgetMin ?? null,
         budgetMax: body.budgetMax ?? null,
         moveInDate: body.moveInDate ?? null,
@@ -192,8 +208,10 @@ export async function PUT(request: Request) {
         bio: body.bio ?? null,
         houseBio: body.houseBio ?? null,
         age: body.age ?? null,
+        gender: body.gender ?? null,
+        nationality: body.nationality ?? null,
         university: body.university ?? null,
-        location: body.location ?? null,
+        location: normalizedLocation,
         budgetMin: body.budgetMin ?? null,
         budgetMax: body.budgetMax ?? null,
         moveInDate: body.moveInDate ?? null,

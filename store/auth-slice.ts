@@ -17,6 +17,8 @@ export type CurrentUser = {
   studentProfile?: {
     fullName?: string | null;
     age?: number | null;
+    gender?: string | null;
+    nationality?: string | null;
     bio?: string | null;
     houseBio?: string | null;
     university?: string | null;

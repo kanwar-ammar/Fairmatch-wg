@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { signupSchema } from "@/lib/auth-schemas";
+import { normalizeGermanRegion } from "@/lib/german-regions";
 import { hashPassword } from "@/lib/password";
 
 export async function POST(request: Request) {
@@ -17,6 +18,15 @@ export async function POST(request: Request) {
     }
 
     const data = parsed.data;
+    const normalizedLocation = normalizeGermanRegion(data.location);
+
+    if (!normalizedLocation) {
+      return NextResponse.json(
+        { error: "Please select a valid location from the regional list." },
+        { status: 400 },
+      );
+    }
+
     const normalizedEmail = data.email.toLowerCase();
 
     const existing = await prisma.user.findUnique({
@@ -40,6 +50,12 @@ export async function POST(request: Request) {
         settings: {
           create: {
             activeRole: "STUDENT",
+          },
+        },
+        studentProfile: {
+          create: {
+            fullName: data.fullName,
+            location: normalizedLocation,
           },
         },
       },

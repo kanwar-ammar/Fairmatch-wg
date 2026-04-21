@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { normalizeGermanRegion } from "@/lib/german-regions";
 
 const listingPreviewSelect = {
   id: true,
@@ -23,13 +24,19 @@ async function findAnchorListing(userId: string, listingId?: string | null) {
       },
       include: {
         memberships: true,
+        amenities: { orderBy: { sortOrder: "asc" } },
+        rules: { orderBy: { sortOrder: "asc" } },
       },
     });
   }
 
   const ownerListing = await prisma.homeProfile.findFirst({
     where: { ownerId: userId },
-    include: { memberships: true },
+    include: {
+      memberships: true,
+      amenities: { orderBy: { sortOrder: "asc" } },
+      rules: { orderBy: { sortOrder: "asc" } },
+    },
   });
 
   if (ownerListing) return ownerListing;
@@ -38,7 +45,11 @@ async function findAnchorListing(userId: string, listingId?: string | null) {
     where: { userId },
     include: {
       homeProfile: {
-        include: { memberships: true },
+        include: {
+          memberships: true,
+          amenities: { orderBy: { sortOrder: "asc" } },
+          rules: { orderBy: { sortOrder: "asc" } },
+        },
       },
     },
   });
@@ -147,10 +158,11 @@ export async function POST(request: Request) {
     };
 
     const title = String(body.title ?? "").trim();
-    const district = String(body.district ?? "").trim();
+    const district =
+      normalizeGermanRegion(String(body.district ?? "")) ?? anchor.district;
     if (!title || !district) {
       return NextResponse.json(
-        { error: "Title and district are required" },
+        { error: "Title and a valid location are required." },
         { status: 400 },
       );
     }
@@ -169,7 +181,7 @@ export async function POST(request: Request) {
           title,
           description: String(body.description ?? "").trim() || null,
           district,
-          address: String(body.address ?? "").trim() || null,
+          address: String(body.address ?? "").trim() || anchor.address,
           rentPrice: Math.max(0, Number(body.rentPrice ?? 0) || 0),
           depositAmount: Math.max(0, Number(body.depositAmount ?? 0) || 0),
           roomSizeM2: Math.max(0, Number(body.roomSizeM2 ?? 0) || 0),
@@ -179,6 +191,16 @@ export async function POST(request: Request) {
           minStayMonths: Math.max(0, Number(body.minStayMonths ?? 0) || 0),
           isLive: body.isLive ?? false,
           vibeSummary: String(body.vibeSummary ?? "").trim() || null,
+          prefCleanliness: anchor.prefCleanliness,
+          prefRecycling: anchor.prefRecycling,
+          prefDiy: anchor.prefDiy,
+          prefCooking: anchor.prefCooking,
+          prefQuietness: anchor.prefQuietness,
+          prefMusic: anchor.prefMusic,
+          prefFitness: anchor.prefFitness,
+          prefStudyHabits: anchor.prefStudyHabits,
+          prefSocial: anchor.prefSocial,
+          prefParties: anchor.prefParties,
         },
         select: { id: true },
       });
@@ -191,6 +213,28 @@ export async function POST(request: Request) {
             role: member.role,
             displayName: member.displayName,
             isPrimaryContact: member.isPrimaryContact,
+          })),
+        });
+      }
+
+      if (anchor.amenities.length > 0) {
+        await tx.homeAmenity.createMany({
+          data: anchor.amenities.map((amenity) => ({
+            homeProfileId: createdListing.id,
+            key: amenity.key,
+            enabled: amenity.enabled,
+            sortOrder: amenity.sortOrder,
+          })),
+        });
+      }
+
+      if (anchor.rules.length > 0) {
+        await tx.homeRule.createMany({
+          data: anchor.rules.map((rule) => ({
+            homeProfileId: createdListing.id,
+            text: rule.text,
+            category: rule.category,
+            sortOrder: rule.sortOrder,
           })),
         });
       }

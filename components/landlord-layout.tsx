@@ -25,7 +25,7 @@ import { useAppSelector } from "@/store/hooks";
 const landlordNavItems = [
   { label: "Overview", icon: Home, id: "ll-overview" },
   { label: "My WG Listings", icon: ClipboardList, id: "ll-listing" },
-  { label: "Housemates & Rules", icon: Users, id: "ll-housemates" },
+  { label: "WG Setup", icon: Users, id: "ll-housemates" },
   { label: "Applications", icon: Inbox, id: "ll-applications" },
   { label: "Messages", icon: MessageSquare, id: "ll-messages" },
 ];

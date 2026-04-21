@@ -141,6 +141,12 @@ export default function Page() {
           void updateActiveRole("RESIDENT");
         }
       }}
+      onRegisterWg={() => {
+        if (!switchingRole) {
+          setLandlordTab("ll-housemates");
+          void updateActiveRole("RESIDENT");
+        }
+      }}
       onSignOut={handleSignOut}
     >
       {studentTab === "dashboard" && (

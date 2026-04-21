@@ -66,6 +66,22 @@ export async function GET(request: Request) {
                   location: true,
                 },
               },
+              preference: {
+                select: {
+                  cleanliness: true,
+                  recycling: true,
+                  diy: true,
+                  cooking: true,
+                  quietness: true,
+                  music: true,
+                  fitness: true,
+                  studyHabits: true,
+                  socialActivity: true,
+                  parties: true,
+                  petFriendly: true,
+                  smokingAllowed: true,
+                },
+              },
             },
           },
           homeProfile: {
@@ -98,7 +114,33 @@ export async function GET(request: Request) {
         orderBy: { updatedAt: "desc" },
       });
 
-      return NextResponse.json({ applications });
+      const maskedApplications = applications.map((application) => {
+        if (!application.blindPhase) {
+          return application;
+        }
+
+        return {
+          ...application,
+          student: {
+            ...application.student,
+            displayName: null,
+            email: "",
+            studentProfile: application.student.studentProfile
+              ? {
+                  ...application.student.studentProfile,
+                  fullName: null,
+                  university: null,
+                  degreeProgram: null,
+                  semester: null,
+                  contact: null,
+                  location: null,
+                }
+              : null,
+          },
+        };
+      });
+
+      return NextResponse.json({ applications: maskedApplications });
     }
 
     const applications = await prisma.application.findMany({
@@ -274,6 +316,7 @@ export async function POST(request: Request) {
           studentId: body.userId as string,
           homeProfileId: body.homeProfileId as string,
           status: "PENDING",
+          blindPhase: true,
           matchScore,
           message,
         },
@@ -469,7 +512,12 @@ export async function PATCH(request: Request) {
 
       return tx.application.update({
         where: { id: application.id },
-        data: { status: body.status },
+        data: {
+          status: body.status,
+          ...(body.status === "INTERVIEW" || body.status === "ACCEPTED"
+            ? { blindPhase: false }
+            : {}),
+        },
         include: {
           interviews: {
             orderBy: { scheduledAt: "desc" },

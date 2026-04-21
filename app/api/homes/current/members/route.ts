@@ -60,6 +60,27 @@ async function isUserInAnotherHome(userId: string, homeProfileId: string) {
   });
 }
 
+async function resolveCurrentMembership(userId: string) {
+  const ownedHome = await prisma.homeProfile.findFirst({
+    where: { ownerId: userId },
+    select: { id: true, ownerId: true, title: true, district: true },
+  });
+
+  if (ownedHome) {
+    return ownedHome;
+  }
+
+  return prisma.homeMembership.findFirst({
+    where: { userId },
+    orderBy: { joinedAt: "asc" },
+    include: {
+      homeProfile: {
+        select: { id: true, ownerId: true, title: true, district: true },
+      },
+    },
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const url = new URL(request.url);
@@ -200,6 +221,136 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "userId required" }, { status: 400 });
     }
 
+    const body = (await request.json().catch(() => ({}))) as {
+      targetUserId?: string;
+    };
+
+    const selfLeave = !body.targetUserId || body.targetUserId === actingUserId;
+
+    if (selfLeave) {
+      const current = await resolveCurrentMembership(actingUserId);
+      const homeProfile =
+        current && "homeProfile" in current ? current.homeProfile : current;
+
+      if (!homeProfile) {
+        return NextResponse.json(
+          { error: "You are not part of any WG." },
+          { status: 404 },
+        );
+      }
+
+      const ownerCount = await prisma.homeMembership.count({
+        where: {
+          homeProfileId: homeProfile.id,
+          role: "OWNER",
+        },
+      });
+
+      const targetMembership = await prisma.homeMembership.findUnique({
+        where: {
+          homeProfileId_userId: {
+            homeProfileId: homeProfile.id,
+            userId: actingUserId,
+          },
+        },
+      });
+
+      if (!targetMembership) {
+        return NextResponse.json(
+          { error: "You are not part of this WG." },
+          { status: 404 },
+        );
+      }
+
+      if (targetMembership.role === "OWNER") {
+        if (ownerCount <= 1) {
+          return NextResponse.json(
+            { error: "At least one owner must remain in the WG." },
+            { status: 400 },
+          );
+        }
+
+        const nextOwner = await prisma.homeMembership.findFirst({
+          where: {
+            homeProfileId: homeProfile.id,
+            userId: { not: actingUserId },
+          },
+          orderBy: { joinedAt: "asc" },
+        });
+
+        if (!nextOwner) {
+          return NextResponse.json(
+            { error: "At least one owner must remain in the WG." },
+            { status: 400 },
+          );
+        }
+
+        const updated = await prisma.$transaction(async (tx) => {
+          await tx.homeMembership.delete({
+            where: {
+              homeProfileId_userId: {
+                homeProfileId: homeProfile.id,
+                userId: actingUserId,
+              },
+            },
+          });
+
+          await tx.homeMembership.update({
+            where: {
+              homeProfileId_userId: {
+                homeProfileId: homeProfile.id,
+                userId: nextOwner.userId,
+              },
+            },
+            data: {
+              role: "OWNER",
+              isPrimaryContact: true,
+            },
+          });
+
+          await tx.homeProfile.update({
+            where: { id: homeProfile.id },
+            data: { ownerId: nextOwner.userId },
+          });
+
+          return tx.homeProfile.findUniqueOrThrow({
+            where: { id: homeProfile.id },
+            include: {
+              memberships: {
+                include: {
+                  user: {
+                    include: {
+                      studentProfile: true,
+                      residentProfile: true,
+                    },
+                  },
+                },
+                orderBy: { joinedAt: "asc" },
+              },
+            },
+          });
+        });
+
+        return NextResponse.json({
+          ok: true,
+          left: true,
+          reassignedOwnerId: nextOwner.userId,
+          homeProfile: updated,
+        });
+      }
+
+      await prisma.homeMembership.delete({
+        where: {
+          homeProfileId_userId: {
+            homeProfileId: homeProfile.id,
+            userId: actingUserId,
+          },
+        },
+      });
+
+      return NextResponse.json({ ok: true, left: true });
+    }
+
     const home = await resolveCurrentHome(actingUserId);
     const homeProfile = "homeProfile" in home ? home.homeProfile : home;
 
@@ -220,10 +371,6 @@ export async function DELETE(request: Request) {
         { status: 403 },
       );
     }
-
-    const body = (await request.json()) as {
-      targetUserId?: string;
-    };
 
     if (!body.targetUserId) {
       return NextResponse.json(

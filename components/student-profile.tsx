@@ -12,6 +12,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setCurrentUserFromDatabase } from "@/store/auth-slice";
 import type { CurrentUser, VerificationDocSummary } from "@/store/auth-slice";
 import { toast } from "@/hooks/use-toast";
+import { GERMAN_REGIONS } from "@/lib/german-regions";
 import {
   ShieldCheck,
   Upload,
@@ -25,6 +26,8 @@ import {
 
 type EditableQuickDetails = {
   age: string;
+  gender: string;
+  nationality: string;
   university: string;
   contact: string;
   location: string;
@@ -41,49 +44,6 @@ const QUICK_DETAIL_PLACEHOLDERS = {
   moveIn: "Add your preferred move-in timeline",
   semester: "Add your current semester",
 };
-
-const GERMAN_CITIES = [
-  "Berlin",
-  "Hamburg",
-  "Munich",
-  "Cologne",
-  "Frankfurt am Main",
-  "Stuttgart",
-  "Dusseldorf",
-  "Dortmund",
-  "Essen",
-  "Leipzig",
-  "Bremen",
-  "Dresden",
-  "Hanover",
-  "Nuremberg",
-  "Duisburg",
-  "Bochum",
-  "Wuppertal",
-  "Bielefeld",
-  "Bonn",
-  "Munster",
-  "Karlsruhe",
-  "Mannheim",
-  "Augsburg",
-  "Wiesbaden",
-  "Gelsenkirchen",
-  "Monchengladbach",
-  "Braunschweig",
-  "Chemnitz",
-  "Kiel",
-  "Aachen",
-  "Halle (Saale)",
-  "Magdeburg",
-  "Freiburg im Breisgau",
-  "Krefeld",
-  "Lubeck",
-  "Mainz",
-  "Erfurt",
-  "Rostock",
-  "Kassel",
-  "Saarbrucken",
-] as const;
 
 function formatDisplayName(name: string) {
   return name
@@ -144,6 +104,8 @@ export function StudentProfile() {
   const [editQuickDetails, setEditQuickDetails] =
     useState<EditableQuickDetails>({
       age: "",
+      gender: "",
+      nationality: "",
       university: "",
       contact: "",
       location: "",
@@ -164,6 +126,8 @@ export function StudentProfile() {
     setEditHouseBio(profile?.houseBio ?? "");
     setEditQuickDetails({
       age: typeof profile?.age === "number" ? String(profile.age) : "",
+      gender: profile?.gender ?? "",
+      nationality: profile?.nationality ?? "",
       university: profile?.university ?? "",
       contact: profile?.contact ?? "",
       location: profile?.location ?? "",
@@ -297,6 +261,8 @@ export function StudentProfile() {
           bio: parseOptionalText(editBio),
           houseBio: parseOptionalText(editHouseBio),
           age: parseOptionalNumber(editQuickDetails.age),
+          gender: parseOptionalText(editQuickDetails.gender),
+          nationality: parseOptionalText(editQuickDetails.nationality),
           university: parseOptionalText(editQuickDetails.university),
           contact: parseOptionalText(editQuickDetails.contact),
           location: parseOptionalText(editQuickDetails.location),
@@ -372,6 +338,18 @@ export function StudentProfile() {
                   <span className="flex items-center gap-1.5">
                     <Calendar className="h-3.5 w-3.5" />
                     {profile.age} years old
+                  </span>
+                ) : null}
+                {profile?.gender ? (
+                  <span className="flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    {profile.gender}
+                  </span>
+                ) : null}
+                {profile?.nationality ? (
+                  <span className="flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    {profile.nationality}
                   </span>
                 ) : null}
                 {profile?.university ? (
@@ -523,6 +501,32 @@ export function StudentProfile() {
                       className="rounded-xl"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Gender
+                    </p>
+                    <Input
+                      value={editQuickDetails.gender}
+                      onChange={(e) =>
+                        handleQuickDetailChange("gender", e.target.value)
+                      }
+                      placeholder="Woman, Man, Non-binary..."
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Nationality
+                    </p>
+                    <Input
+                      value={editQuickDetails.nationality}
+                      onChange={(e) =>
+                        handleQuickDetailChange("nationality", e.target.value)
+                      }
+                      placeholder="German"
+                      className="rounded-xl"
+                    />
+                  </div>
                   <div className="space-y-2 sm:col-span-2">
                     <p className="text-xs font-medium text-muted-foreground">
                       Contact
@@ -550,7 +554,7 @@ export function StudentProfile() {
                       className="rounded-xl"
                     />
                     <datalist id="german-city-options">
-                      {GERMAN_CITIES.map((city) => (
+                      {GERMAN_REGIONS.map((city) => (
                         <option key={city} value={city} />
                       ))}
                     </datalist>
@@ -639,6 +643,16 @@ export function StudentProfile() {
                     label="University"
                     value={profile?.university || "Add your university"}
                     isPlaceholder={!profile?.university}
+                  />
+                  <DetailRow
+                    label="Gender"
+                    value={profile?.gender || "Add your gender"}
+                    isPlaceholder={!profile?.gender}
+                  />
+                  <DetailRow
+                    label="Nationality"
+                    value={profile?.nationality || "Add your nationality"}
+                    isPlaceholder={!profile?.nationality}
                   />
                   <DetailRow
                     label="Contact"

@@ -38,6 +38,7 @@ type ApplicationStatus =
 
 type ResidentApplication = {
   id: string;
+  blindPhase: boolean;
   status: ApplicationStatus;
   matchScore: number;
   appliedAt: string;
@@ -53,12 +54,28 @@ type ResidentApplication = {
       degreeProgram: string | null;
       semester: string | null;
       age: number | null;
+      gender: string | null;
+      nationality: string | null;
       bio: string | null;
       houseBio: string | null;
       contact: string | null;
       hobbies: string | null;
       languages: string | null;
       location: string | null;
+    } | null;
+    preference: {
+      cleanliness: number;
+      recycling: number;
+      diy: number;
+      cooking: number;
+      quietness: number;
+      music: number;
+      fitness: number;
+      studyHabits: number;
+      socialActivity: number;
+      parties: number;
+      petFriendly: boolean;
+      smokingAllowed: boolean;
     } | null;
   };
   homeProfile: {
@@ -259,7 +276,7 @@ export function LandlordApplications({
   };
 
   const openProfile = async (application: ResidentApplication) => {
-    if (currentUser?.id) {
+    if (currentUser?.id && !application.blindPhase) {
       try {
         await fetch("/api/profile-views", {
           method: "POST",
@@ -394,17 +411,20 @@ export function LandlordApplications({
               </Card>
             ) : (
               filtered.map((application) => {
-                const studentName =
-                  application.student.displayName ||
-                  application.student.studentProfile?.fullName ||
-                  application.student.email;
+                const studentName = application.blindPhase
+                  ? "Blind Candidate"
+                  : application.student.displayName ||
+                    application.student.studentProfile?.fullName ||
+                    application.student.email;
                 const initials =
-                  studentName
-                    .split(" ")
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .map((part) => part[0]?.toUpperCase())
-                    .join("") || "ST";
+                  (application.blindPhase
+                    ? application.id.slice(0, 2)
+                    : studentName
+                        .split(" ")
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((part) => part[0]?.toUpperCase())
+                        .join("")) || "ST";
                 const interview = application.interviews[0];
                 const interviewDateTime = interview?.scheduledAt
                   ? new Date(interview.scheduledAt)
@@ -445,12 +465,21 @@ export function LandlordApplications({
                               {application.homeProfile.district}
                             </p>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {application.student.studentProfile
-                                ?.degreeProgram || "Student"}
-                              {application.student.studentProfile?.semester
+                              {application.blindPhase
+                                ? "Blind pre-casting"
+                                : application.student.studentProfile
+                                    ?.degreeProgram || "Student"}
+                              {!application.blindPhase &&
+                              application.student.studentProfile?.semester
                                 ? `, ${application.student.studentProfile.semester}`
                                 : ""}
                             </p>
+                            {application.blindPhase ? (
+                              <p className="mt-1 text-[11px] text-primary font-medium">
+                                Schedule interview to unlock full profile
+                                details.
+                              </p>
+                            ) : null}
                           </div>
                         </div>
 
@@ -520,7 +549,9 @@ export function LandlordApplications({
                             className="rounded-xl gap-1"
                             onClick={() => void openProfile(application)}
                           >
-                            View Profile
+                            {application.blindPhase
+                              ? "Blind Details"
+                              : "View Profile"}
                           </Button>
                         </div>
                       </div>
@@ -762,80 +793,141 @@ export function LandlordApplications({
           </DialogHeader>
 
           <div className="space-y-3 text-sm">
-            <div>
-              <p className="text-xs text-muted-foreground">Full Name</p>
-              <p className="font-semibold text-foreground">
-                {profileApplication?.student.displayName ||
-                  profileApplication?.student.studentProfile?.fullName ||
-                  profileApplication?.student.email}
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <p className="text-xs text-muted-foreground">University</p>
-                <p className="text-foreground">
-                  {profileApplication?.student.studentProfile?.university ||
-                    "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Program</p>
-                <p className="text-foreground">
-                  {profileApplication?.student.studentProfile?.degreeProgram ||
-                    "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Semester</p>
-                <p className="text-foreground">
-                  {profileApplication?.student.studentProfile?.semester || "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Location</p>
-                <p className="text-foreground">
-                  {profileApplication?.student.studentProfile?.location || "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Age</p>
-                <p className="text-foreground">
-                  {profileApplication?.student.studentProfile?.age ?? "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Languages</p>
-                <p className="text-foreground">
-                  {profileApplication?.student.studentProfile?.languages || "-"}
-                </p>
-              </div>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Contact</p>
-              <p className="text-foreground">
-                {profileApplication?.student.studentProfile?.contact ||
-                  profileApplication?.student.email ||
-                  "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Bio</p>
-              <p className="text-foreground whitespace-pre-wrap">
-                {profileApplication?.student.studentProfile?.bio || "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">WG-specific Bio</p>
-              <p className="text-foreground whitespace-pre-wrap">
-                {profileApplication?.student.studentProfile?.houseBio || "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Hobbies</p>
-              <p className="text-foreground">
-                {profileApplication?.student.studentProfile?.hobbies || "-"}
-              </p>
-            </div>
+            {profileApplication?.blindPhase ? (
+              <>
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-foreground">
+                  Blind pre-casting is active. Schedule an interview to unlock
+                  full profile details (name, contact, location, and photo).
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Age</p>
+                    <p className="text-foreground">
+                      {profileApplication.student.studentProfile?.age ?? "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Gender</p>
+                    <p className="text-foreground">
+                      {profileApplication.student.studentProfile?.gender || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Nationality</p>
+                    <p className="text-foreground">
+                      {profileApplication.student.studentProfile?.nationality ||
+                        "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Languages</p>
+                    <p className="text-foreground">
+                      {profileApplication.student.studentProfile?.languages ||
+                        "-"}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Hobbies</p>
+                  <p className="text-foreground">
+                    {profileApplication.student.studentProfile?.hobbies || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    Lifestyle Match Inputs
+                  </p>
+                  <p className="text-foreground text-xs leading-relaxed">
+                    {profileApplication.student.preference
+                      ? `Cleanliness ${profileApplication.student.preference.cleanliness}%, Recycling ${profileApplication.student.preference.recycling}%, Cooking ${profileApplication.student.preference.cooking}%, Quietness ${profileApplication.student.preference.quietness}%, Social ${profileApplication.student.preference.socialActivity}%, Parties ${profileApplication.student.preference.parties}%`
+                      : "-"}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <p className="text-xs text-muted-foreground">Full Name</p>
+                  <p className="font-semibold text-foreground">
+                    {profileApplication?.student.displayName ||
+                      profileApplication?.student.studentProfile?.fullName ||
+                      profileApplication?.student.email}
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">University</p>
+                    <p className="text-foreground">
+                      {profileApplication?.student.studentProfile?.university ||
+                        "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Program</p>
+                    <p className="text-foreground">
+                      {profileApplication?.student.studentProfile
+                        ?.degreeProgram || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Semester</p>
+                    <p className="text-foreground">
+                      {profileApplication?.student.studentProfile?.semester ||
+                        "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Location</p>
+                    <p className="text-foreground">
+                      {profileApplication?.student.studentProfile?.location ||
+                        "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Age</p>
+                    <p className="text-foreground">
+                      {profileApplication?.student.studentProfile?.age ?? "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Languages</p>
+                    <p className="text-foreground">
+                      {profileApplication?.student.studentProfile?.languages ||
+                        "-"}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Contact</p>
+                  <p className="text-foreground">
+                    {profileApplication?.student.studentProfile?.contact ||
+                      profileApplication?.student.email ||
+                      "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Bio</p>
+                  <p className="text-foreground whitespace-pre-wrap">
+                    {profileApplication?.student.studentProfile?.bio || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    WG-specific Bio
+                  </p>
+                  <p className="text-foreground whitespace-pre-wrap">
+                    {profileApplication?.student.studentProfile?.houseBio ||
+                      "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Hobbies</p>
+                  <p className="text-foreground">
+                    {profileApplication?.student.studentProfile?.hobbies || "-"}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           <DialogFooter>

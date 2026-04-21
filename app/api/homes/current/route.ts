@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeGermanRegion } from "@/lib/german-regions";
 
 const prisma = new PrismaClient();
 
@@ -165,6 +166,189 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  try {
+    const userId = request.nextUrl.searchParams.get("userId");
+
+    if (!userId) {
+      return NextResponse.json({ error: "userId required" }, { status: 400 });
+    }
+
+    const existingHome = await prisma.homeProfile.findFirst({
+      where: {
+        OR: [
+          { ownerId: userId },
+          {
+            memberships: {
+              some: {
+                userId,
+                role: "OWNER",
+              },
+            },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (existingHome) {
+      return NextResponse.json(
+        { error: "You already have a WG profile." },
+        { status: 409 },
+      );
+    }
+
+    const body = (await request.json()) as {
+      title?: string;
+      district?: string;
+      address?: string;
+      description?: string;
+      rules?: Array<{ text?: string } | string>;
+      preferences?: {
+        cleanliness?: number;
+        recycling?: number;
+        diy?: number;
+        cooking?: number;
+        quietness?: number;
+        music?: number;
+        fitness?: number;
+        studyHabits?: number;
+        social?: number;
+        parties?: number;
+      };
+      amenities?: Array<{ key?: string; enabled?: boolean }>;
+    };
+
+    const title = String(body.title ?? "").trim();
+    const district = normalizeGermanRegion(String(body.district ?? ""));
+    const address = String(body.address ?? "").trim();
+
+    if (!title || !district || !address) {
+      return NextResponse.json(
+        {
+          error:
+            "WG name, valid location, and address are required to register a WG.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const normalizedRules = Array.isArray(body.rules)
+      ? body.rules
+          .map((rule) => {
+            if (typeof rule === "string") {
+              return rule.trim();
+            }
+            return String(rule?.text ?? "").trim();
+          })
+          .filter((rule) => rule.length > 0)
+      : [];
+
+    if (normalizedRules.length < 3) {
+      return NextResponse.json(
+        { error: "Please add at least 3 house rules." },
+        { status: 400 },
+      );
+    }
+
+    const normalizedAmenities = Array.isArray(body.amenities)
+      ? body.amenities
+          .map((amenity, index) => {
+            const key = String(amenity?.key ?? "").trim();
+            if (!key) return null;
+            return {
+              key,
+              enabled: Boolean(amenity?.enabled),
+              sortOrder: index,
+            };
+          })
+          .filter(
+            (
+              amenity,
+            ): amenity is {
+              key: string;
+              enabled: boolean;
+              sortOrder: number;
+            } => Boolean(amenity),
+          )
+      : [];
+
+    const clampPercent = (value: unknown) =>
+      Math.min(100, Math.max(0, parseInt(String(value), 10) || 0));
+
+    const pref = body.preferences ?? {};
+
+    const created = await prisma.$transaction(async (tx) => {
+      const home = await tx.homeProfile.create({
+        data: {
+          ownerId: userId,
+          title,
+          description: String(body.description ?? "").trim() || null,
+          district,
+          address,
+          // Listing-level details can be configured later when creating actual listings.
+          rentPrice: 0,
+          totalRooms: 1,
+          availableRooms: 1,
+          isLive: false,
+          prefCleanliness: clampPercent(pref.cleanliness ?? 50),
+          prefRecycling: clampPercent(pref.recycling ?? 50),
+          prefDiy: clampPercent(pref.diy ?? 50),
+          prefCooking: clampPercent(pref.cooking ?? 50),
+          prefQuietness: clampPercent(pref.quietness ?? 50),
+          prefMusic: clampPercent(pref.music ?? 50),
+          prefFitness: clampPercent(pref.fitness ?? 50),
+          prefStudyHabits: clampPercent(pref.studyHabits ?? 50),
+          prefSocial: clampPercent(pref.social ?? 50),
+          prefParties: clampPercent(pref.parties ?? 50),
+        },
+        select: { id: true },
+      });
+
+      await tx.homeMembership.create({
+        data: {
+          homeProfileId: home.id,
+          userId,
+          role: "OWNER",
+          isPrimaryContact: true,
+        },
+      });
+
+      if (normalizedRules.length > 0) {
+        await tx.homeRule.createMany({
+          data: normalizedRules.map((rule, index) => ({
+            homeProfileId: home.id,
+            text: rule,
+            category: "general",
+            sortOrder: index,
+          })),
+        });
+      }
+
+      if (normalizedAmenities.length > 0) {
+        await tx.homeAmenity.createMany({
+          data: normalizedAmenities.map((amenity) => ({
+            homeProfileId: home.id,
+            key: amenity.key,
+            enabled: amenity.enabled,
+            sortOrder: amenity.sortOrder,
+          })),
+        });
+      }
+
+      return tx.homeProfile.findUniqueOrThrow({
+        where: { id: home.id },
+        include: homeInclude,
+      });
+    });
+
+    return NextResponse.json({ homeProfile: created, isOwner: true });
+  } catch (error) {
+    console.error("Failed to create WG profile:", error);
+    return NextResponse.json({ error: "Failed to create WG profile" }, { status: 500 });
+  }
+}
+
 /**
  * PUT /api/homes/current
  * Update the current home profile (only owner can edit visibility, title, description, details)
@@ -235,7 +419,16 @@ export async function PUT(request: NextRequest) {
     if (vibeSummary !== undefined)
       updateData.vibeSummary = String(vibeSummary).trim();
     if (address !== undefined) updateData.address = String(address).trim();
-    if (district !== undefined) updateData.district = String(district).trim();
+    if (district !== undefined) {
+      const normalizedDistrict = normalizeGermanRegion(String(district));
+      if (!normalizedDistrict) {
+        return NextResponse.json(
+          { error: "Location is required and must match the regional list." },
+          { status: 400 },
+        );
+      }
+      updateData.district = normalizedDistrict;
+    }
 
     const clampPercent = (value: unknown) =>
       Math.min(100, Math.max(0, parseInt(String(value), 10) || 0));

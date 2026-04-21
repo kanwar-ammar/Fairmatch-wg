@@ -340,14 +340,7 @@ export function LandlordListing() {
         availableFrom: editData.availableFrom.trim(),
         minStayMonths: Math.max(0, parseInt(editData.minStay, 10) || 0),
         isLive: editData.isLive,
-        address: editData.address.trim(),
-        district: editData.district.trim(),
         vibeSummary: editData.vibeSummary.trim(),
-        amenities: amenities.map((amenity, index) => ({
-          key: amenity.key,
-          enabled: amenity.enabled,
-          sortOrder: index,
-        })),
       };
 
       const response = await fetch(
@@ -411,10 +404,10 @@ export function LandlordListing() {
   const handleCreateListing = async () => {
     if (!currentUser?.id || !isOwner) return;
 
-    if (!newListing.title.trim() || !newListing.district.trim()) {
+    if (!newListing.title.trim()) {
       setSaveMessage({
         type: "error",
-        text: "Title and district are required",
+        text: "Title is required",
       });
       return;
     }
@@ -428,7 +421,6 @@ export function LandlordListing() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: newListing.title,
-            district: newListing.district,
             address: newListing.address,
             description: newListing.description,
             rentPrice: parseInt(newListing.rentPrice, 10) || 0,
@@ -451,7 +443,6 @@ export function LandlordListing() {
       setCreateOpen(false);
       setNewListing({
         title: "",
-        district: "",
         address: "",
         description: "",
         rentPrice: "",
@@ -655,18 +646,11 @@ export function LandlordListing() {
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">
-                      District *
+                      WG Location
                     </Label>
-                    <Input
-                      value={newListing.district}
-                      onChange={(event) =>
-                        setNewListing((prev) => ({
-                          ...prev,
-                          district: event.target.value,
-                        }))
-                      }
-                      className="mt-1 rounded-lg text-sm"
-                    />
+                    <p className="mt-1 rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                      Managed in WG Setup. New listings inherit your WG location.
+                    </p>
                   </div>
                 </div>
 
@@ -958,7 +942,7 @@ export function LandlordListing() {
               <Card className="rounded-2xl border-border shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base font-semibold">
-                    Amenities
+                    Amenities (Managed in WG Setup)
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -988,18 +972,16 @@ export function LandlordListing() {
                           >
                             {amenity.label}
                           </span>
-                          {isEditing && isOwner ? (
-                            <Switch
-                              checked={amenity.enabled}
-                              onCheckedChange={() => toggleAmenity(amenity.id)}
-                            />
-                          ) : amenity.enabled ? (
+                          {amenity.enabled ? (
                             <Check className="h-4 w-4 text-accent" />
                           ) : null}
                         </div>
                       );
                     })}
                   </div>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Update amenities in WG Setup so changes apply across your WG listings.
+                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -1084,7 +1066,7 @@ export function LandlordListing() {
               <Card className="rounded-2xl border-border shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base font-semibold">
-                    Location
+                    Location (Managed in WG Setup)
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
@@ -1092,38 +1074,21 @@ export function LandlordListing() {
                     <Label className="text-xs text-muted-foreground">
                       Address
                     </Label>
-                    {isEditing && isOwner ? (
-                      <Input
-                        value={editData.address}
-                        onChange={(event) =>
-                          handleEditFieldChange("address", event.target.value)
-                        }
-                        className="mt-1 rounded-lg text-sm"
-                      />
-                    ) : (
-                      <p className="mt-1 text-sm font-medium text-foreground">
-                        {editData.address || "-"}
-                      </p>
-                    )}
+                    <p className="mt-1 text-sm font-medium text-foreground">
+                      {editData.address || "-"}
+                    </p>
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">
-                      District
+                      Location
                     </Label>
-                    {isEditing && isOwner ? (
-                      <Input
-                        value={editData.district}
-                        onChange={(event) =>
-                          handleEditFieldChange("district", event.target.value)
-                        }
-                        className="mt-1 rounded-lg text-sm"
-                      />
-                    ) : (
-                      <p className="mt-1 text-sm font-medium text-foreground">
-                        {editData.district || "-"}
-                      </p>
-                    )}
+                    <p className="mt-1 text-sm font-medium text-foreground">
+                      {editData.district || "-"}
+                    </p>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Update location and address in WG Setup to apply them to WG listings.
+                  </p>
                   <div>
                     <Label className="text-xs text-muted-foreground">
                       Available From

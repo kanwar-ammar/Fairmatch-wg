@@ -10,6 +10,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -18,7 +24,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Building2,
   Check,
+  CookingPot,
   Dumbbell,
   GraduationCap,
   MapPin,
@@ -31,9 +39,18 @@ import {
   Star,
   Trash2,
   Users,
+  Wifi,
+  Bike,
+  TreePine,
+  ShowerHead,
+  Sofa,
+  WashingMachine,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSelector } from "@/store/hooks";
+import { useAppDispatch } from "@/store/hooks";
+import { setCurrentUserFromDatabase } from "@/store/auth-slice";
+import { GERMAN_REGIONS } from "@/lib/german-regions";
 
 type HomeMember = {
   id: string;
@@ -69,7 +86,15 @@ type HomeProfile = {
   ownerId: string;
   title: string;
   district: string;
+  address: string | null;
+  description: string | null;
   isLive?: boolean;
+  amenities: Array<{
+    id: string;
+    key: string;
+    enabled: boolean;
+    sortOrder: number;
+  }>;
   memberships: HomeMember[];
   rules: HomeRule[];
   prefCleanliness: number;
@@ -113,6 +138,30 @@ type EditableRule = {
   id: string;
   text: string;
 };
+
+type SetupAmenity = {
+  key: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  enabled: boolean;
+};
+
+const setupAmenityCatalog: Array<Omit<SetupAmenity, "enabled">> = [
+  { key: "wifi", label: "WiFi", icon: Wifi },
+  { key: "washer", label: "Washing Machine", icon: WashingMachine },
+  { key: "kitchen", label: "Fully Equipped Kitchen", icon: CookingPot },
+  { key: "bike", label: "Bike Storage", icon: Bike },
+  { key: "garden", label: "Garden / Balcony", icon: TreePine },
+  { key: "shower", label: "Private Shower", icon: ShowerHead },
+  { key: "furnished", label: "Furnished Room", icon: Sofa },
+];
+
+const defaultSetupAmenities: SetupAmenity[] = setupAmenityCatalog.map(
+  (item) => ({
+    ...item,
+    enabled: ["wifi", "washer", "kitchen"].includes(item.key),
+  }),
+);
 
 const interestIcons: Record<
   string,
@@ -187,14 +236,27 @@ function getLevelColor(value: number): string {
 
 export function LandlordHousemates() {
   const currentUser = useAppSelector((state) => state.auth.currentUser);
+  const dispatch = useAppDispatch();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [noWgYet, setNoWgYet] = useState(false);
   const [homeProfile, setHomeProfile] = useState<HomeProfile | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isCreatingWg, setIsCreatingWg] = useState(false);
+
+  const [setupForm, setSetupForm] = useState({
+    title: "",
+    district: "",
+    address: "",
+    description: "",
+  });
+  const [setupAmenities, setSetupAmenities] = useState<SetupAmenity[]>(
+    defaultSetupAmenities,
+  );
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchEmail, setSearchEmail] = useState("");
@@ -238,6 +300,23 @@ export function LandlordHousemates() {
       social: clampPercent(profile.prefSocial ?? 50),
       parties: clampPercent(profile.prefParties ?? 50),
     });
+
+    setSetupForm({
+      title: profile.title ?? "",
+      district: profile.district ?? "",
+      address: profile.address ?? "",
+      description: profile.description ?? "",
+    });
+
+    const byKey = new Map(
+      (profile.amenities ?? []).map((item) => [item.key, item.enabled]),
+    );
+    setSetupAmenities(
+      setupAmenityCatalog.map((item) => ({
+        ...item,
+        enabled: byKey.get(item.key) ?? false,
+      })),
+    );
   };
 
   const fetchHome = async () => {
@@ -249,6 +328,7 @@ export function LandlordHousemates() {
 
     setLoading(true);
     setError(null);
+    setNoWgYet(false);
 
     try {
       const response = await fetch(
@@ -257,6 +337,21 @@ export function LandlordHousemates() {
       const payload = await response.json();
 
       if (!response.ok) {
+        if (response.status === 403) {
+          setNoWgYet(true);
+          setHomeProfile(null);
+          setIsOwner(false);
+          setEditableRules([
+            {
+              id: "seed-1",
+              text: "Respect quiet hours after 22:00 on weekdays.",
+            },
+            { id: "seed-2", text: "Clean shared spaces after using them." },
+            { id: "seed-3", text: "Share overnight guest plans in advance." },
+          ]);
+          setSetupAmenities(defaultSetupAmenities);
+          return;
+        }
         throw new Error(payload.error || "Unable to load your WG.");
       }
 
@@ -295,6 +390,9 @@ export function LandlordHousemates() {
 
   const currentMemberCount = members.length;
   const currentUserIsOwner = isOwner;
+  const canLeaveWg = Boolean(homeProfile && currentUser?.id);
+  const disableLeaveBecauseOnlyMember = currentMemberCount <= 1;
+  const canLeaveAsOwner = !disableLeaveBecauseOnlyMember;
 
   const isMemberUnavailable =
     Boolean(searchResult) &&
@@ -308,6 +406,34 @@ export function LandlordHousemates() {
 
   const handlePreferenceChange = (key: keyof WgPreferences, value: number) => {
     setPreferences((prev) => ({ ...prev, [key]: clampPercent(value) }));
+  };
+
+  const handleSetupFieldChange = (
+    field: keyof typeof setupForm,
+    value: string,
+  ) => {
+    setSetupForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const refreshCurrentUser = async () => {
+    if (!currentUser?.id) return;
+
+    const response = await fetch(
+      `/api/users/current?userId=${encodeURIComponent(currentUser.id)}`,
+      { cache: "no-store" },
+    );
+    const payload = await response.json();
+    if (response.ok && payload.user) {
+      dispatch(setCurrentUserFromDatabase(payload.user));
+    }
+  };
+
+  const toggleSetupAmenity = (key: string) => {
+    setSetupAmenities((prev) =>
+      prev.map((item) =>
+        item.key === key ? { ...item, enabled: !item.enabled } : item,
+      ),
+    );
   };
 
   const handleRuleChange = (ruleId: string, value: string) => {
@@ -338,6 +464,19 @@ export function LandlordHousemates() {
 
     if (!currentUser?.id || !homeProfile) return;
 
+    if (
+      !setupForm.title.trim() ||
+      !setupForm.district.trim() ||
+      !setupForm.address.trim()
+    ) {
+      toast({
+        title: "Missing required setup details",
+        description: "WG name, location, and address are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSavingProfile(true);
     try {
       const response = await fetch(
@@ -346,8 +485,17 @@ export function LandlordHousemates() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            title: setupForm.title,
+            district: setupForm.district,
+            address: setupForm.address,
+            description: setupForm.description,
             rules: editableRules.map((rule) => ({ text: rule.text })),
             preferences,
+            amenities: setupAmenities.map((item, index) => ({
+              key: item.key,
+              enabled: item.enabled,
+              sortOrder: index,
+            })),
           }),
         },
       );
@@ -361,9 +509,11 @@ export function LandlordHousemates() {
       setHomeProfile(payload.homeProfile);
       hydrateEditableState(payload.homeProfile);
       setIsEditing(false);
+      await refreshCurrentUser();
       toast({
         title: "WG profile updated",
-        description: "Rules and preferences were saved successfully.",
+        description:
+          "WG setup, rules, amenities, and preferences were saved successfully.",
       });
     } catch (err) {
       toast({
@@ -373,6 +523,83 @@ export function LandlordHousemates() {
       });
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleCreateWgProfile = async () => {
+    if (!currentUser?.id) return;
+
+    if (
+      !setupForm.title.trim() ||
+      !setupForm.district.trim() ||
+      !setupForm.address.trim()
+    ) {
+      toast({
+        title: "Missing required setup details",
+        description: "WG name, location, and address are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (
+      editableRules.filter((rule) => rule.text.trim().length > 0).length < 3
+    ) {
+      toast({
+        title: "At least 3 rules required",
+        description:
+          "Define at least 3 house rules before registering your WG.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreatingWg(true);
+    try {
+      const response = await fetch(
+        `/api/homes/current?userId=${encodeURIComponent(currentUser.id)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: setupForm.title,
+            district: setupForm.district,
+            address: setupForm.address,
+            description: setupForm.description,
+            rules: editableRules.map((rule) => ({ text: rule.text })),
+            preferences,
+            amenities: setupAmenities.map((item) => ({
+              key: item.key,
+              enabled: item.enabled,
+            })),
+          }),
+        },
+      );
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to register WG.");
+      }
+
+      setNoWgYet(false);
+      setHomeProfile(payload.homeProfile);
+      setIsOwner(Boolean(payload.isOwner));
+      hydrateEditableState(payload.homeProfile);
+      await refreshCurrentUser();
+
+      toast({
+        title: "WG registered",
+        description:
+          "Your WG profile is ready. You can now invite housemates and create WG listings.",
+      });
+    } catch (err) {
+      toast({
+        title: "Unable to register WG",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingWg(false);
     }
   };
 
@@ -460,6 +687,7 @@ export function LandlordHousemates() {
       setSearchMessage(null);
       setSelectedRole("MEMBER");
       await fetchHome();
+      await refreshCurrentUser();
     } catch (err) {
       setSearchMessage(
         err instanceof Error ? err.message : "Unable to add this housemate.",
@@ -495,6 +723,7 @@ export function LandlordHousemates() {
       });
 
       await fetchHome();
+      await refreshCurrentUser();
     } catch (err) {
       toast({
         title: "Unable to remove housemate",
@@ -506,43 +735,328 @@ export function LandlordHousemates() {
     }
   };
 
+  const handleLeaveWg = async () => {
+    if (!currentUser?.id || !homeProfile) return;
+
+    try {
+      const response = await fetch(
+        `/api/homes/current/members?userId=${encodeURIComponent(currentUser.id)}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ targetUserId: currentUser.id }),
+        },
+      );
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to leave WG.");
+      }
+
+      setHomeProfile(null);
+      setNoWgYet(true);
+      setIsOwner(false);
+      setIsEditing(false);
+      setEditableRules([
+        { id: "seed-1", text: "Respect quiet hours after 22:00 on weekdays." },
+        { id: "seed-2", text: "Clean shared spaces after using them." },
+        { id: "seed-3", text: "Share overnight guest plans in advance." },
+      ]);
+      setSetupAmenities(defaultSetupAmenities);
+      await refreshCurrentUser();
+
+      toast({
+        title: "You left the WG",
+        description: payload.reassignedOwnerId
+          ? "Ownership was handed to the oldest joined housemate."
+          : "You can now register or join another WG.",
+      });
+    } catch (err) {
+      toast({
+        title: "Unable to leave WG",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-xl font-bold text-foreground">My WG</h3>
+          <h3 className="text-xl font-bold text-foreground">WG Setup</h3>
           <p className="mt-0.5 text-sm text-muted-foreground font-body">
-            Live housemates, editable house rules, and WG preference percentages
-            for {homeProfile?.title ?? "your current WG"}.
+            General information, housemates, rules, amenities, and WG
+            preferences for {homeProfile?.title ?? "your WG"}.
           </p>
         </div>
-        {currentUserIsOwner ? (
-          <Button
-            variant={isEditing ? "default" : "outline"}
-            className="rounded-xl gap-2"
-            onClick={() => void handleToggleEditProfile()}
-            disabled={isSavingProfile}
-          >
-            {isEditing ? (
-              <>
-                <Check className="h-4 w-4" />
-                {isSavingProfile ? "Saving..." : "Save Profile"}
-              </>
-            ) : (
-              <>
-                <Pencil className="h-4 w-4" />
-                Edit Profile
-              </>
-            )}
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {currentUserIsOwner && !noWgYet ? (
+            <Button
+              variant={isEditing ? "default" : "outline"}
+              className="rounded-xl gap-2"
+              onClick={() => void handleToggleEditProfile()}
+              disabled={isSavingProfile}
+            >
+              {isEditing ? (
+                <>
+                  <Check className="h-4 w-4" />
+                  {isSavingProfile ? "Saving..." : "Save Profile"}
+                </>
+              ) : (
+                <>
+                  <Pencil className="h-4 w-4" />
+                  Edit Profile
+                </>
+              )}
+            </Button>
+          ) : null}
+          {canLeaveWg ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Button
+                      variant="outline"
+                      className="rounded-xl gap-2 bg-transparent"
+                      onClick={() => void handleLeaveWg()}
+                      disabled={!canLeaveAsOwner}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Leave WG
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {disableLeaveBecauseOnlyMember ? (
+                  <TooltipContent>
+                    You are currently the only member of this WG. Add another
+                    member before leaving.
+                  </TooltipContent>
+                ) : null}
+              </Tooltip>
+            </TooltipProvider>
+          ) : null}
+        </div>
       </div>
+
+      {noWgYet ? (
+        <Card className="rounded-2xl border-border shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">
+              Register Your WG
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Start by defining your WG setup. After this, you can invite
+              housemates and create WG listings under this WG profile.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">
+                  WG Name *
+                </p>
+                <Input
+                  value={setupForm.title}
+                  onChange={(event) =>
+                    handleSetupFieldChange("title", event.target.value)
+                  }
+                  className="mt-1 rounded-xl"
+                />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">
+                  Location *
+                </p>
+                <Input
+                  value={setupForm.district}
+                  onChange={(event) =>
+                    handleSetupFieldChange("district", event.target.value)
+                  }
+                  list="wg-setup-location-options"
+                  className="mt-1 rounded-xl"
+                />
+                <datalist id="wg-setup-location-options">
+                  {GERMAN_REGIONS.map((region) => (
+                    <option key={region} value={region} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                Address *
+              </p>
+              <Input
+                value={setupForm.address}
+                onChange={(event) =>
+                  handleSetupFieldChange("address", event.target.value)
+                }
+                className="mt-1 rounded-xl"
+              />
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                General Description
+              </p>
+              <Input
+                value={setupForm.description}
+                onChange={(event) =>
+                  handleSetupFieldChange("description", event.target.value)
+                }
+                className="mt-1 rounded-xl"
+              />
+            </div>
+
+            <Button
+              className="rounded-xl gap-2"
+              onClick={() => void handleCreateWgProfile()}
+              disabled={isCreatingWg}
+            >
+              <Building2 className="h-4 w-4" />
+              {isCreatingWg ? "Creating WG..." : "Register WG Profile"}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {error ? (
         <Alert variant="destructive">
           <AlertTitle>Could not load your WG</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
+      ) : null}
+
+      {homeProfile ? (
+        <Card className="rounded-2xl border-border shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">
+              WG General Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">
+                  WG Name
+                </p>
+                {isEditing ? (
+                  <Input
+                    value={setupForm.title}
+                    onChange={(event) =>
+                      handleSetupFieldChange("title", event.target.value)
+                    }
+                    className="mt-1 rounded-xl"
+                  />
+                ) : (
+                  <p className="mt-1 text-sm text-foreground">
+                    {setupForm.title || "-"}
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">
+                  Location
+                </p>
+                {isEditing ? (
+                  <Input
+                    value={setupForm.district}
+                    onChange={(event) =>
+                      handleSetupFieldChange("district", event.target.value)
+                    }
+                    list="wg-setup-location-options"
+                    className="mt-1 rounded-xl"
+                  />
+                ) : (
+                  <p className="mt-1 text-sm text-foreground">
+                    {setupForm.district || "-"}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                Address
+              </p>
+              {isEditing ? (
+                <Input
+                  value={setupForm.address}
+                  onChange={(event) =>
+                    handleSetupFieldChange("address", event.target.value)
+                  }
+                  className="mt-1 rounded-xl"
+                />
+              ) : (
+                <p className="mt-1 text-sm text-foreground">
+                  {setupForm.address || "-"}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                Description
+              </p>
+              {isEditing ? (
+                <Input
+                  value={setupForm.description}
+                  onChange={(event) =>
+                    handleSetupFieldChange("description", event.target.value)
+                  }
+                  className="mt-1 rounded-xl"
+                />
+              ) : (
+                <p className="mt-1 text-sm text-foreground">
+                  {setupForm.description || "-"}
+                </p>
+              )}
+            </div>
+
+            <datalist id="wg-setup-location-options">
+              {GERMAN_REGIONS.map((region) => (
+                <option key={region} value={region} />
+              ))}
+            </datalist>
+
+            <Separator />
+
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                WG Amenities
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {setupAmenities.map((amenity) => {
+                  const Icon = amenity.icon;
+                  return (
+                    <button
+                      key={amenity.key}
+                      type="button"
+                      onClick={() =>
+                        isEditing && toggleSetupAmenity(amenity.key)
+                      }
+                      className="flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-left"
+                      disabled={!isEditing}
+                    >
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-foreground flex-1">
+                        {amenity.label}
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        className={`rounded-full text-[10px] ${amenity.enabled ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"}`}
+                      >
+                        {amenity.enabled ? "On" : "Off"}
+                      </Badge>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       ) : null}
 
       <Card className="rounded-2xl border-border shadow-sm">
@@ -803,7 +1317,10 @@ export function LandlordHousemates() {
                 <Slider
                   value={[preferences[item.key]]}
                   onValueChange={(value) =>
-                    handlePreferenceChange(item.key, value[0] ?? preferences[item.key])
+                    handlePreferenceChange(
+                      item.key,
+                      value[0] ?? preferences[item.key],
+                    )
                   }
                   max={100}
                   step={5}

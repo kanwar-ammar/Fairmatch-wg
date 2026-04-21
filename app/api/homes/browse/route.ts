@@ -36,7 +36,10 @@ export async function GET(request: Request) {
         },
       }),
       prisma.homeProfile.findMany({
-        where: { isLive: true },
+        where: {
+          isLive: true,
+          district: { not: "" },
+        },
         include: {
           amenities: {
             where: { enabled: true },

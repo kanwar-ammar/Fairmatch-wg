@@ -20,6 +20,7 @@ import { useAppSelector } from "@/store/hooks";
 
 type ResidentApplicant = {
   id: string;
+  name: string;
   initials: string;
   score: number;
   status: "new" | "viewed" | "interview" | "other";
@@ -106,7 +107,7 @@ export function LandlordOverview({
             </h3>
             <p className="mt-1 text-sm text-muted-foreground font-body leading-relaxed">
               You have {overview?.newApplications ?? 0} new applications and{" "}
-              {overview?.interviews ?? 0} upcoming interviews.
+              {overview?.interviews ?? 0} pending interviews.
             </p>
           </div>
           <Button
@@ -133,7 +134,7 @@ export function LandlordOverview({
         />
         <StatCard
           icon={CalendarClock}
-          label="Interviews"
+          label="Pending Interviews"
           value={String(overview?.interviews ?? 0)}
           accent
         />
@@ -199,7 +200,7 @@ export function LandlordOverview({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-foreground">
-                        Candidate #{a.initials}
+                        {a.name}
                       </span>
                       {a.status === "new" && (
                         <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
