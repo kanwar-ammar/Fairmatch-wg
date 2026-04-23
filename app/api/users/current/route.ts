@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { normalizeGermanRegion } from "@/lib/german-regions";
+
+function isLegacyPrismaUnknownArgumentError(error: unknown, fieldName: string) {
+  return (
+    error instanceof Prisma.PrismaClientValidationError &&
+    error.message.includes("Unknown argument") &&
+    error.message.includes(fieldName)
+  );
+}
 
 function getTodayIsoDate() {
   const now = new Date();
@@ -50,7 +59,24 @@ async function buildCurrentUserPayload(userId: string) {
     return null;
   }
 
-  const canUseResident = user.ownedHomes.length > 0 || user.memberships.length > 0;
+  const studentProfileIdentityFields = await prisma.$queryRaw<
+    Array<{ gender: string | null; nationality: string | null }>
+  >`SELECT gender, nationality FROM StudentProfile WHERE userId = ${userId} LIMIT 1`;
+
+  const studentProfileWithIdentity = user.studentProfile
+    ? {
+        ...user.studentProfile,
+        ...(studentProfileIdentityFields[0]
+          ? {
+              gender: studentProfileIdentityFields[0].gender,
+              nationality: studentProfileIdentityFields[0].nationality,
+            }
+          : {}),
+      }
+    : null;
+
+  const canUseResident =
+    user.ownedHomes.length > 0 || user.memberships.length > 0;
 
   const activeRole =
     user.settings?.activeRole === "RESIDENT" && canUseResident
@@ -68,7 +94,8 @@ async function buildCurrentUserPayload(userId: string) {
 
   const primaryHome = user.ownedHomes[0] ?? user.memberships[0]?.homeProfile;
   const primaryHomeLabel = primaryHome ? `${primaryHome.title}` : null;
-  const primaryHomeId = user.ownedHomes[0]?.id ?? user.memberships[0]?.homeProfileId ?? null;
+  const primaryHomeId =
+    user.ownedHomes[0]?.id ?? user.memberships[0]?.homeProfileId ?? null;
 
   return {
     id: user.id,
@@ -76,7 +103,7 @@ async function buildCurrentUserPayload(userId: string) {
     fullName,
     activeRole,
     avatarUrl,
-    studentProfile: user.studentProfile,
+    studentProfile: studentProfileWithIdentity,
     residentProfile: user.residentProfile,
     verificationDocs: user.verificationDocs,
     primaryHomeLabel,
@@ -184,43 +211,75 @@ export async function PUT(request: Request) {
       );
     }
 
-    await prisma.studentProfile.upsert({
-      where: { userId: body.userId },
-      update: {
-        bio: body.bio ?? null,
-        houseBio: body.houseBio ?? null,
-        age: body.age ?? null,
-        gender: body.gender ?? null,
-        nationality: body.nationality ?? null,
-        university: body.university ?? null,
-        location: normalizedLocation,
-        budgetMin: body.budgetMin ?? null,
-        budgetMax: body.budgetMax ?? null,
-        moveInDate: body.moveInDate ?? null,
-        semester: body.semester ?? null,
-        contact: body.contact ?? null,
-        hobbies: body.hobbies ?? null,
-        preferredDistricts: body.preferredDistricts ?? null,
-      },
-      create: {
-        userId: body.userId,
-        fullName: fullNameForStudentProfile,
-        bio: body.bio ?? null,
-        houseBio: body.houseBio ?? null,
-        age: body.age ?? null,
-        gender: body.gender ?? null,
-        nationality: body.nationality ?? null,
-        university: body.university ?? null,
-        location: normalizedLocation,
-        budgetMin: body.budgetMin ?? null,
-        budgetMax: body.budgetMax ?? null,
-        moveInDate: body.moveInDate ?? null,
-        semester: body.semester ?? null,
-        contact: body.contact ?? null,
-        hobbies: body.hobbies ?? null,
-        preferredDistricts: body.preferredDistricts ?? null,
-      },
-    });
+    const studentProfileBaseData = {
+      bio: body.bio ?? null,
+      houseBio: body.houseBio ?? null,
+      age: body.age ?? null,
+      gender: body.gender ?? null,
+      nationality: body.nationality ?? null,
+      university: body.university ?? null,
+      location: normalizedLocation,
+      budgetMin: body.budgetMin ?? null,
+      budgetMax: body.budgetMax ?? null,
+      moveInDate: body.moveInDate ?? null,
+      semester: body.semester ?? null,
+      contact: body.contact ?? null,
+      hobbies: body.hobbies ?? null,
+      preferredDistricts: body.preferredDistricts ?? null,
+    };
+
+    try {
+      await prisma.studentProfile.upsert({
+        where: { userId: body.userId },
+        update: studentProfileBaseData,
+        create: {
+          userId: body.userId,
+          fullName: fullNameForStudentProfile,
+          ...studentProfileBaseData,
+        },
+      });
+    } catch (error) {
+      // Backward-compat fallback for stale local Prisma clients.
+      if (
+        isLegacyPrismaUnknownArgumentError(error, "gender") ||
+        isLegacyPrismaUnknownArgumentError(error, "nationality")
+      ) {
+        const legacyData = {
+          bio: body.bio ?? null,
+          houseBio: body.houseBio ?? null,
+          age: body.age ?? null,
+          university: body.university ?? null,
+          location: normalizedLocation,
+          budgetMin: body.budgetMin ?? null,
+          budgetMax: body.budgetMax ?? null,
+          moveInDate: body.moveInDate ?? null,
+          semester: body.semester ?? null,
+          contact: body.contact ?? null,
+          hobbies: body.hobbies ?? null,
+          preferredDistricts: body.preferredDistricts ?? null,
+        };
+
+        await prisma.studentProfile.upsert({
+          where: { userId: body.userId },
+          update: legacyData,
+          create: {
+            userId: body.userId,
+            fullName: fullNameForStudentProfile,
+            ...legacyData,
+          },
+        });
+
+        // Persist new identity fields explicitly when Prisma Client metadata is stale.
+        await prisma.$executeRaw`
+          UPDATE StudentProfile
+          SET gender = ${body.gender ?? null},
+              nationality = ${body.nationality ?? null}
+          WHERE userId = ${body.userId}
+        `;
+      } else {
+        throw error;
+      }
+    }
 
     const payload = await buildCurrentUserPayload(body.userId);
     if (!payload) {

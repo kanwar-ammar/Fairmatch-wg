@@ -45,6 +45,31 @@ const QUICK_DETAIL_PLACEHOLDERS = {
   semester: "Add your current semester",
 };
 
+const GENDER_OPTIONS = [
+  "Woman",
+  "Man",
+  "Non-binary",
+  "Prefer not to say",
+] as const;
+
+const NATIONALITY_OPTIONS = [
+  "German",
+  "Turkish",
+  "Syrian",
+  "Ukrainian",
+  "Italian",
+  "Spanish",
+  "French",
+  "Dutch",
+  "Polish",
+  "Indian",
+  "Pakistani",
+  "Nigerian",
+  "Chinese",
+  "Other",
+  "Prefer not to say",
+] as const;
+
 function formatDisplayName(name: string) {
   return name
     .trim()
@@ -505,27 +530,39 @@ export function StudentProfile() {
                     <p className="text-xs font-medium text-muted-foreground">
                       Gender
                     </p>
-                    <Input
+                    <select
                       value={editQuickDetails.gender}
                       onChange={(e) =>
                         handleQuickDetailChange("gender", e.target.value)
                       }
-                      placeholder="Woman, Man, Non-binary..."
-                      className="rounded-xl"
-                    />
+                      className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                    >
+                      <option value="">Select gender</option>
+                      {GENDER_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">
                       Nationality
                     </p>
-                    <Input
+                    <select
                       value={editQuickDetails.nationality}
                       onChange={(e) =>
                         handleQuickDetailChange("nationality", e.target.value)
                       }
-                      placeholder="German"
-                      className="rounded-xl"
-                    />
+                      className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                    >
+                      <option value="">Select nationality</option>
+                      {NATIONALITY_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <p className="text-xs font-medium text-muted-foreground">
